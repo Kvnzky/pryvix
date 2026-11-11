@@ -28,6 +28,7 @@ import {
 import pryvixPrimaryDark from '../assets/brand/pryvix-primary-dark.png';
 import pryvixLogomark from '../assets/brand/pryvix-logomark.png';
 import { ReferenceTemplate } from '@shared/types';
+import { GhlConnectionCard } from '../components/GhlConnectionCard';
 
 export const SettingsPage: React.FC = () => {
   const [clearedNotice, setClearedNotice] = useState(false);
@@ -137,6 +138,9 @@ export const SettingsPage: React.FC = () => {
           <Check className="w-4 h-4" /> Cache cleared successfully!
         </div>
       )}
+
+      {/* GoHighLevel Media Storage Connection Configuration */}
+      <GhlConnectionCard />
 
       {/* Portable Application & Storage Mode Card */}
       <div className="bg-[#111520] border border-[#1f2638] rounded-2xl p-6 shadow-lg space-y-4">
@@ -378,27 +382,6 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* GoHighLevel Integration Architecture */}
-      <div className="bg-[#121829] border border-[#1e2942] rounded-2xl p-6 shadow-lg space-y-3">
-        <div className="flex items-center gap-2 text-sm font-bold text-white pb-3 border-b border-[#1e2942]">
-          <Lock className="w-4 h-4 text-violet-400" />
-          GoHighLevel Integration & Credential Protection
-        </div>
-        <p className="text-xs text-gray-300 leading-relaxed">
-          Landing Page Studio uses standard GoHighLevel iframe embeds and client-side tracking tokens (<code className="text-violet-400">login_token</code> and <code className="text-violet-400">event_id</code>). It does not require any private GoHighLevel API keys for core operation.
-        </p>
-
-        <div className="p-3.5 rounded-xl bg-[#0a0e1a] border border-[#1e2942] text-[11px] text-gray-400 space-y-1">
-          <div className="font-bold text-white flex items-center gap-1.5">
-            <Info className="w-3.5 h-3.5 text-blue-400" />
-            Security Rule: Zero Credential Exposure
-          </div>
-          <p>
-            Private Integration Tokens are never included in exported HTML, application logs, or project backups. When token authentication is used for webhook forwarding, credentials remain strictly encapsulated within the local system keychain.
-          </p>
         </div>
       </div>
 

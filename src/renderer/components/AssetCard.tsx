@@ -520,9 +520,9 @@ const AssetCardComponent: React.FC<AssetCardProps> = ({
               <button
                 onClick={() => setIsLibraryOpen(true)}
                 className="px-2 py-1 rounded bg-[#182030] hover:bg-[#202b40] text-gray-300 text-[10px] font-medium flex items-center gap-1 transition-colors border border-[#263554]"
-                title="Select video from library"
+                title="Browse GoHighLevel Media Storage (Videos)"
               >
-                <FolderPlus className="w-2.5 h-2.5 text-blue-400" /> Library
+                <FolderPlus className="w-2.5 h-2.5 text-blue-400" /> GHL Media
               </button>
 
               <button
@@ -557,9 +557,9 @@ const AssetCardComponent: React.FC<AssetCardProps> = ({
               <button
                 onClick={() => setIsLibraryOpen(true)}
                 className="px-2 py-1 rounded bg-[#182030] hover:bg-[#202b40] text-gray-300 text-[10px] font-medium flex items-center gap-1 transition-colors border border-[#263554]"
-                title="Select from reusable library"
+                title="Browse GoHighLevel Media Storage (Images)"
               >
-                <FolderPlus className="w-2.5 h-2.5 text-blue-400" /> Library
+                <FolderPlus className="w-2.5 h-2.5 text-blue-400" /> GHL Media
               </button>
             </>
           ) : (
@@ -607,17 +607,20 @@ const AssetCardComponent: React.FC<AssetCardProps> = ({
       <LibraryModal
         isOpen={isLibraryOpen}
         onClose={() => setIsLibraryOpen(false)}
+        mediaFilter={isVideoAsset || bgMode === 'video' ? 'video' : 'image'}
         onSelectUrl={url => {
-          if (bgMode === 'video') {
+          if (isVideoAsset || bgMode === 'video') {
             setVideoUrl(url);
             handleApplyVideo(url);
           } else {
             setInputUrl(url);
             setBgMode('url');
             onReplaceUrl(asset.id, url);
+            setLocalFeedback('GHL Asset Applied!');
+            setTimeout(() => setLocalFeedback(null), 2000);
           }
         }}
-        title={`Select Asset for: ${asset.label}`}
+        title={`Browse GHL Media Storage for: ${asset.label}`}
       />
 
       {/* Image / Color / Video Preview Large Modal */}

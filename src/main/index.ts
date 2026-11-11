@@ -7,6 +7,14 @@ import {
   openInDefaultTextEditor,
   PortablePaths,
 } from './portableStorage';
+import {
+  getGhlConnectionStatus,
+  testGhlConnection,
+  handleDisconnectGhl,
+  listGhlMedia,
+  verifyGhlMediaAssetUrl,
+} from '../server/ghlMediaService';
+import { GHLMediaListParams } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let portablePaths: PortablePaths;
@@ -402,4 +410,29 @@ ipcMain.handle('dialog:selectImage', async () => {
 
 ipcMain.handle('fs:readLocalFile', async (_, filePath: string) => {
   return fs.readFileSync(filePath, 'utf8');
+});
+
+// IPC: GoHighLevel Media Storage Integration (Shared Backend Service)
+ipcMain.handle('ghl:getStatus', async () => {
+  return getGhlConnectionStatus();
+});
+
+ipcMain.handle('ghl:saveCredentials', async (_, options: { token?: string; locationId?: string }) => {
+  return await testGhlConnection(options);
+});
+
+ipcMain.handle('ghl:testConnection', async (_, options?: { token?: string; locationId?: string }) => {
+  return await testGhlConnection(options);
+});
+
+ipcMain.handle('ghl:disconnect', async () => {
+  return handleDisconnectGhl();
+});
+
+ipcMain.handle('ghl:listMedia', async (_, params?: GHLMediaListParams) => {
+  return await listGhlMedia(params || {});
+});
+
+ipcMain.handle('ghl:verifyAsset', async (_, url: string) => {
+  return await verifyGhlMediaAssetUrl(url);
 });

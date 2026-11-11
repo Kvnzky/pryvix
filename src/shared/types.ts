@@ -297,3 +297,97 @@ export interface SourceComparisonReport {
   summary: string;
 }
 
+// ============================================================================
+// GoHighLevel Media Storage Integration Types (API v3)
+// ============================================================================
+
+export type GHLMediaEntityType = 'file' | 'folder';
+export type GHLMediaCategory = 'image' | 'video' | 'folder' | 'other';
+export type GHLSortBy = 'updatedAt' | 'createdAt' | 'name';
+export type GHLSortOrder = 'asc' | 'desc';
+export type GHLFilterTab = 'all' | 'image' | 'video' | 'folder';
+
+export interface GHLMediaItem {
+  id: string;
+  name: string;
+  url: string;
+  thumbnailUrl?: string;
+  type: GHLMediaEntityType;
+  mediaCategory: GHLMediaCategory;
+  mimeType?: string;
+  fileExtension?: string;
+  size?: number;
+  parentId?: string | null;
+  altId: string;
+  altType: 'location';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GHLFolderBreadcrumb {
+  id: string | null;
+  name: string;
+}
+
+export interface GHLMediaListParams {
+  locationId?: string;
+  parentId?: string | null;
+  query?: string;
+  filterTab?: GHLFilterTab;
+  sortBy?: GHLSortBy;
+  sortOrder?: GHLSortOrder;
+  offset?: number;
+  limit?: number;
+  refresh?: boolean;
+}
+
+export interface GHLMediaListResponse {
+  success: boolean;
+  items: GHLMediaItem[];
+  folders: GHLMediaItem[];
+  files: GHLMediaItem[];
+  totalCount: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  locationId: string;
+  parentId: string | null;
+  fromCache: boolean;
+  syncedAt: string;
+  error?: string;
+  errorCode?:
+    | 'NOT_CONFIGURED'
+    | 'UNAUTHORIZED'
+    | 'FORBIDDEN_SCOPE'
+    | 'INVALID_LOCATION'
+    | 'RATE_LIMITED'
+    | 'NETWORK_ERROR'
+    | 'API_ERROR';
+}
+
+export interface GHLConnectionStatus {
+  connected: boolean;
+  hasToken: boolean;
+  maskedToken: string;
+  locationId: string;
+  requiredScope: string;
+  status: 'connected' | 'disconnected' | 'error' | 'unconfigured';
+  statusMessage: string;
+  lastSyncedAt?: string | null;
+  lastError?: string | null;
+  errorCode?: string | null;
+  stats?: {
+    fileCount?: number;
+    folderCount?: number;
+  };
+}
+
+export interface GHLVerifyAssetResult {
+  accessible: boolean;
+  status: number;
+  contentType?: string;
+  contentLength?: number;
+  error?: string;
+}
+
+

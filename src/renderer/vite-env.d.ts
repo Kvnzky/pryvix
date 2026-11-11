@@ -84,6 +84,12 @@ export interface IElectronAPI {
   readEditedFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>;
   showItemInFolder: (filePath: string) => Promise<boolean>;
   openPath: (targetPath: string) => Promise<string>;
+  ghlGetStatus: () => Promise<import('@shared/types').GHLConnectionStatus>;
+  ghlSaveCredentials: (options: { token?: string; locationId?: string }) => Promise<import('@shared/types').GHLConnectionStatus>;
+  ghlTestConnection: (options?: { token?: string; locationId?: string }) => Promise<import('@shared/types').GHLConnectionStatus>;
+  ghlDisconnect: () => Promise<import('@shared/types').GHLConnectionStatus>;
+  ghlListMedia: (params?: import('@shared/types').GHLMediaListParams) => Promise<import('@shared/types').GHLMediaListResponse>;
+  ghlVerifyAsset: (url: string) => Promise<import('@shared/types').GHLVerifyAssetResult>;
   platform: string;
 }
 

@@ -30,6 +30,21 @@ import {
   BUNDLED_STATIC_REFERENCE_HTML,
   BUNDLED_VIDEO_REFERENCE_HTML,
 } from '../src/shared/referenceTemplates.ts';
+import {
+  DEFAULT_GHL_LOCATION_ID,
+  REQUIRED_GHL_SCOPE,
+  saveGhlCredentials,
+  getSafeCredentialStatus,
+  getServerSideGhlToken,
+  disconnectGhlCredentials,
+  redactSecrets,
+} from '../src/server/secretStore.ts';
+import {
+  listGhlMedia,
+  isAllowedGhlAssetUrl,
+  getGhlConnectionStatus,
+} from '../src/server/ghlMediaService.ts';
+import { handleGhlApiRequest } from '../src/server/apiMiddleware.ts';
 import JSZip from 'jszip';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -948,6 +963,116 @@ if (
 }
 console.log('   ✓ Shared Form Title / Name synchronized across both Desktop and Mobile GHL forms.');
 
+// 32. GoHighLevel Media Storage Secret Store & Zero-Exposure Security Audit
+console.log('\n[TEST 32] Testing GoHighLevel Secret Store Encryption & Zero-Exposure Rules:');
+if (DEFAULT_GHL_LOCATION_ID !== 'tSCoUOTHrXglK2BwDeYc' || REQUIRED_GHL_SCOPE !== 'medias.readonly') {
+  console.error('FAIL: Default GHL Location ID or Required Scope mismatch!');
+  process.exit(1);
+}
+
+// Ensure clean state before testing secret store
+disconnectGhlCredentials();
+const unconfMedia = await listGhlMedia();
+if (unconfMedia.success || unconfMedia.errorCode !== 'NOT_CONFIGURED' || unconfMedia.items.length !== 0) {
+  console.error('FAIL: Unconfigured GHL Media call did not return NOT_CONFIGURED or returned mock items!', unconfMedia);
+  process.exit(1);
+}
+console.log('   ✓ Unconfigured state verified: returns NOT_CONFIGURED with 0 mock items.');
+
+// Test AES-256-GCM encryption & masked status
+const ephemeralTestValue = 'ephemeral_unit_test_secret_99887766';
+saveGhlCredentials({ token: ephemeralTestValue, locationId: 'tSCoUOTHrXglK2BwDeYc' });
+const decryptedServerVal = getServerSideGhlToken();
+const publicSafeStatus = getSafeCredentialStatus();
+
+if (decryptedServerVal !== ephemeralTestValue) {
+  console.error('FAIL: Server-side AES-256-GCM decryption failed to recover stored value!');
+  process.exit(1);
+}
+if (
+  !publicSafeStatus.hasToken ||
+  JSON.stringify(publicSafeStatus).includes(ephemeralTestValue) ||
+  JSON.stringify(getGhlConnectionStatus()).includes(ephemeralTestValue)
+) {
+  console.error('FAIL: Public credential status leaked the raw token!');
+  process.exit(1);
+}
+
+const redactedMsg = redactSecrets(`Error calling API with Bearer ${ephemeralTestValue}`);
+if (redactedMsg.includes(ephemeralTestValue)) {
+  console.error('FAIL: redactSecrets failed to strip secret from error message!');
+  process.exit(1);
+}
+
+// Immediately wipe test credential so repository/disk remains in clean unconfigured state
+disconnectGhlCredentials();
+const testSecretFile = path.join(__dirname, '..', 'data', 'settings', '.ghl-secrets.enc');
+if (fs.existsSync(testSecretFile)) {
+  fs.unlinkSync(testSecretFile);
+}
+if (getServerSideGhlToken() !== null) {
+  console.error('FAIL: disconnectGhlCredentials did not remove the stored token!');
+  process.exit(1);
+}
+console.log('   ✓ AES-256-GCM encryption, public masking, secret redaction, and disconnect wipe verified.');
+
+// 33. GoHighLevel Media API v3 Allowlist & HTTP Middleware Access Control
+console.log('\n[TEST 33] Testing GHL Media URL Allowlist & Backend HTTP Access Control:');
+if (
+  !isAllowedGhlAssetUrl('https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/sample.png') ||
+  !isAllowedGhlAssetUrl('https://storage.googleapis.com/msgsndr/sample.mp4')
+) {
+  console.error('FAIL: Valid HTTPS GHL CDN URLs were rejected by allowlist!');
+  process.exit(1);
+}
+if (
+  isAllowedGhlAssetUrl('http://assets.cdn.filesafe.space/insecure.png') ||
+  isAllowedGhlAssetUrl('https://attacker.example.com/malicious.png')
+) {
+  console.error('FAIL: Insecure HTTP or untrusted domain URL was permitted by allowlist!');
+  process.exit(1);
+}
+
+// Test middleware rejects unauthenticated requests (missing X-Pryvix-Client header)
+let mockStatus = 0;
+let mockBody = '';
+const mockRes = {
+  set statusCode(code) {
+    mockStatus = code;
+  },
+  get statusCode() {
+    return mockStatus;
+  },
+  setHeader() {},
+  end(str) {
+    mockBody = str;
+  },
+};
+await handleGhlApiRequest(
+  { url: '/api/ghl/status', method: 'GET', headers: {}, socket: { remoteAddress: '127.0.0.1' } },
+  mockRes
+);
+if (mockStatus !== 401) {
+  console.error(`FAIL: Expected 401 for unauthenticated request, got ${mockStatus}`);
+  process.exit(1);
+}
+
+// Test middleware accepts authenticated client request
+await handleGhlApiRequest(
+  {
+    url: '/api/ghl/status',
+    method: 'GET',
+    headers: { 'x-pryvix-client': 'pryvix-studio-v1' },
+    socket: { remoteAddress: '127.0.0.1' },
+  },
+  mockRes
+);
+if (mockStatus !== 200 || !JSON.parse(mockBody).locationId) {
+  console.error(`FAIL: Expected 200 OK with locationId for authenticated status request, got ${mockStatus}: ${mockBody}`);
+  process.exit(1);
+}
+console.log('   ✓ GHL CDN domain allowlist and authenticated /api/ghl/* middleware verified.');
+
 console.log('\n====================================================');
-console.log('   ALL 31 TEST SUITES PASSED WITH 100% FIDELITY!   ');
+console.log('   ALL 33 TEST SUITES PASSED WITH 100% FIDELITY!   ');
 console.log('====================================================\n');

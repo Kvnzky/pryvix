@@ -1,4 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type {
+  GHLConnectionStatus,
+  GHLMediaListParams,
+  GHLMediaListResponse,
+  GHLVerifyAssetResult,
+} from '../shared/types';
 
 export interface PortableInfo {
   isPortable: boolean;
@@ -54,6 +60,12 @@ export interface IElectronAPI {
   readEditedFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>;
   showItemInFolder: (filePath: string) => Promise<boolean>;
   openPath: (targetPath: string) => Promise<string>;
+  ghlGetStatus: () => Promise<GHLConnectionStatus>;
+  ghlSaveCredentials: (options: { token?: string; locationId?: string }) => Promise<GHLConnectionStatus>;
+  ghlTestConnection: (options?: { token?: string; locationId?: string }) => Promise<GHLConnectionStatus>;
+  ghlDisconnect: () => Promise<GHLConnectionStatus>;
+  ghlListMedia: (params?: GHLMediaListParams) => Promise<GHLMediaListResponse>;
+  ghlVerifyAsset: (url: string) => Promise<GHLVerifyAssetResult>;
   platform: string;
 }
 
@@ -80,6 +92,14 @@ const api: IElectronAPI = {
   readEditedFile: (filePath: string) => ipcRenderer.invoke('editor:readEditedFile', filePath),
   showItemInFolder: (filePath: string) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
   openPath: (targetPath: string) => ipcRenderer.invoke('shell:openPath', targetPath),
+  ghlGetStatus: () => ipcRenderer.invoke('ghl:getStatus'),
+  ghlSaveCredentials: (options: { token?: string; locationId?: string }) =>
+    ipcRenderer.invoke('ghl:saveCredentials', options),
+  ghlTestConnection: (options?: { token?: string; locationId?: string }) =>
+    ipcRenderer.invoke('ghl:testConnection', options),
+  ghlDisconnect: () => ipcRenderer.invoke('ghl:disconnect'),
+  ghlListMedia: (params?: GHLMediaListParams) => ipcRenderer.invoke('ghl:listMedia', params),
+  ghlVerifyAsset: (url: string) => ipcRenderer.invoke('ghl:verifyAsset', url),
   platform: process.platform,
 };
 

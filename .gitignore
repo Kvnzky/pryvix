@@ -8,6 +8,8 @@ release/
 out/
 
 # Local Portable Runtime Data & Backups
+data/
+exports/
 LandingPageStudio-Data/
 .checkpoint/
 temp-asar-unpack/
@@ -17,6 +19,8 @@ pryvix-brand-assets.zip
 .env
 .env.*
 !.env.example
+.ghl-secrets*
+*.enc
 
 # Logs & Diagnostics
 logs/

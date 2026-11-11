@@ -6,9 +6,10 @@
   "main": "dist-electron/main/index.cjs",
   "scripts": {
     "dev": "vite",
-    "build:electron": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist-electron/main/index.cjs --external:electron && esbuild src/preload/index.ts --bundle --platform=node --outfile=dist-electron/preload/index.cjs --external:electron && node -e \"import('fs').then(fs => { fs.writeFileSync('dist-electron/main/index.js', 'import \\\"./index.cjs\\\";\\n'); fs.writeFileSync('dist-electron/preload/index.js', 'import \\\"./index.cjs\\\";\\n'); })\"",
+    "build:electron": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist-electron/main/index.cjs --external:electron && esbuild src/preload/index.ts --bundle --platform=node --outfile=dist-electron/preload/index.cjs --external:electron && esbuild src/server/index.ts --bundle --platform=node --outfile=dist-electron/server/index.cjs && node -e \"import('fs').then(fs => { fs.writeFileSync('dist-electron/main/index.js', 'import \\\"./index.cjs\\\";\\n'); fs.writeFileSync('dist-electron/preload/index.js', 'import \\\"./index.cjs\\\";\\n'); })\"",
     "build": "vite build && npm run build:electron",
     "start": "electron dist-electron/main/index.cjs",
+    "start:web": "node dist-electron/server/index.cjs",
     "dev:electron": "concurrently -k \"vite\" \"wait-on tcp:5188 && electron .\"",
     "test": "esbuild test/suite.js --bundle --platform=node --format=esm --outfile=dist/test-suite.js && node dist/test-suite.js",
     "package:exe": "npm run build && electron-builder --win portable",
