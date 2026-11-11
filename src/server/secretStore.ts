@@ -19,18 +19,36 @@ interface StoredSecretPayload {
   updatedAt: string;
 }
 
-function getSecretFilePath(): string {
-  const baseDir = process.env.PORTABLE_EXECUTABLE_DIR || process.cwd();
-  const settingsDir = path.join(baseDir, 'data', 'settings');
-  if (!fs.existsSync(settingsDir)) {
-    try {
-      fs.mkdirSync(settingsDir, { recursive: true });
-    } catch {
-      // Fallback to os.tmpdir if read-only cwd
-      return path.join(os.tmpdir(), '.pryvix-ghl-secrets.enc');
+function getSecretFilePaths(): string[] {
+  const paths: string[] = [];
+
+  // 1. OS user profile vault (shared across Desktop .exe, dev, and web server regardless of working directory)
+  try {
+    const userVaultDir = path.join(os.homedir(), '.pryvix');
+    if (!fs.existsSync(userVaultDir)) {
+      fs.mkdirSync(userVaultDir, { recursive: true });
     }
+    paths.push(path.join(userVaultDir, '.ghl-secrets.enc'));
+  } catch {
+    // ignore if homedir inaccessible
   }
-  return path.join(settingsDir, '.ghl-secrets.enc');
+
+  // 2. Local portable data/settings directory
+  try {
+    const baseDir = process.env.PORTABLE_EXECUTABLE_DIR || process.cwd();
+    const settingsDir = path.join(baseDir, 'data', 'settings');
+    if (!fs.existsSync(settingsDir)) {
+      fs.mkdirSync(settingsDir, { recursive: true });
+    }
+    paths.push(path.join(settingsDir, '.ghl-secrets.enc'));
+  } catch {
+    // ignore
+  }
+
+  if (paths.length === 0) {
+    paths.push(path.join(os.tmpdir(), '.pryvix-ghl-secrets.enc'));
+  }
+  return paths;
 }
 
 function deriveMachineKey(): Buffer {
@@ -77,17 +95,21 @@ function decryptToken(ciphertext: string, ivBase64: string, authTagBase64: strin
 }
 
 function readStoredPayload(): StoredSecretPayload {
-  const filePath = getSecretFilePath();
-  if (fs.existsSync(filePath)) {
-    try {
-      const raw = fs.readFileSync(filePath, 'utf8');
-      const parsed = JSON.parse(raw) as StoredSecretPayload;
-      return {
-        ...parsed,
-        locationId: (parsed.locationId || DEFAULT_GHL_LOCATION_ID).trim(),
-      };
-    } catch {
-      // Corrupted file fallback
+  const filePaths = getSecretFilePaths();
+  for (const filePath of filePaths) {
+    if (fs.existsSync(filePath)) {
+      try {
+        const raw = fs.readFileSync(filePath, 'utf8');
+        const parsed = JSON.parse(raw) as StoredSecretPayload;
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...parsed,
+            locationId: (parsed.locationId || DEFAULT_GHL_LOCATION_ID).trim(),
+          };
+        }
+      } catch {
+        // Try next path
+      }
     }
   }
   return {
@@ -99,8 +121,15 @@ function readStoredPayload(): StoredSecretPayload {
 }
 
 function writeStoredPayload(payload: StoredSecretPayload): void {
-  const filePath = getSecretFilePath();
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
+  const filePaths = getSecretFilePaths();
+  const serialized = JSON.stringify(payload, null, 2);
+  for (const filePath of filePaths) {
+    try {
+      fs.writeFileSync(filePath, serialized, { encoding: 'utf8', mode: 0o600 });
+    } catch {
+      // ignore individual path write failure
+    }
+  }
 }
 
 /**

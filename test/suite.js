@@ -970,6 +970,10 @@ if (DEFAULT_GHL_LOCATION_ID !== 'tSCoUOTHrXglK2BwDeYc' || REQUIRED_GHL_SCOPE !==
   process.exit(1);
 }
 
+// Preserve any existing configured token before running unit tests on secretStore
+const preexistingToken = getServerSideGhlToken();
+const preexistingLocationId = getSafeCredentialStatus().locationId;
+
 // Ensure clean state before testing secret store
 disconnectGhlCredentials();
 const unconfMedia = await listGhlMedia();
@@ -1004,15 +1008,15 @@ if (redactedMsg.includes(ephemeralTestValue)) {
   process.exit(1);
 }
 
-// Immediately wipe test credential so repository/disk remains in clean unconfigured state
+// Wipe ephemeral test credential
 disconnectGhlCredentials();
-const testSecretFile = path.join(__dirname, '..', 'data', 'settings', '.ghl-secrets.enc');
-if (fs.existsSync(testSecretFile)) {
-  fs.unlinkSync(testSecretFile);
-}
 if (getServerSideGhlToken() !== null) {
   console.error('FAIL: disconnectGhlCredentials did not remove the stored token!');
   process.exit(1);
+}
+// Restore preexisting user token if one was configured
+if (preexistingToken) {
+  saveGhlCredentials({ token: preexistingToken, locationId: preexistingLocationId });
 }
 console.log('   ✓ AES-256-GCM encryption, public masking, secret redaction, and disconnect wipe verified.');
 
