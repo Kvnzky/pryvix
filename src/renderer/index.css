@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0a0e1a] text-gray-100;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom subtle scrollbar in Midnight Navy theme */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0b1122;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1e2942;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2b3d63;
+  }
+}
+
+.editor-preview-container {
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+}

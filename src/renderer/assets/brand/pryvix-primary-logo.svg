@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="pGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+  </defs>
+  <!-- Brand Logomark -->
+  <g transform="translate(10, 15) scale(0.85)">
+    <!-- P & Stack Layers -->
+    <path d="M 40 25 L 130 25 C 165 25 185 45 185 75 C 185 105 160 120 120 120 L 80 120 L 80 170 L 40 170 Z" fill="url(#pGrad)" />
+    <path d="M 80 58 L 125 58 C 145 58 152 68 152 75 C 152 85 142 92 125 92 L 80 92 Z" fill="#080B11" />
+    <!-- Dynamic Chevron / V Fold -->
+    <path d="M 85 140 L 130 185 L 185 105 L 165 90 L 130 145 L 105 120 Z" fill="url(#vGrad)" />
+    <!-- Back Leaf / Layer -->
+    <path d="M 175 60 L 205 105 L 180 140 L 165 120 L 185 95 Z" fill="#06B6D4" opacity="0.85" />
+  </g>
+  <!-- Wordmark PRYVIX -->
+  <text x="230" y="132" font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="94" letter-spacing="4" fill="#FFFFFF">PRYVI<tspan fill="url(#pGrad)">X</tspan></text>
+</svg>

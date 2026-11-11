@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+  <html lang="en">
+
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Tickford Raceday Experience Sandown | Mega Rewards</title>
+
+      <!-- Google Fonts -->
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link
+          href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Orbitron:wght@700;800;900&family=Rajdhani:wght@600;700&display=swap"
+          rel="stylesheet">
+
+      <!-- Bootstrap CSS -->
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+
+      <style>
+          * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+
+              /* Universal Custom Narrow Scrollbar for Desktop & Mobile */
+              html,
+              body,
+              * {
+                  scrollbar-width: thin !important;
+                  scrollbar-color: #e10600 #0a0a0a !important;
+                  -webkit-overflow-scrolling: touch;
+              }
+
+              ::-webkit-scrollbar,
+              *::-webkit-scrollbar {
+                  width: 5px !important;
+                  height: 5px !important;
+                  display: block !important;
+              }
+
+              ::-webkit-scrollbar-track,
+              *::-webkit-scrollbar-track {
+                  background: #0a0a0a !important;
+                  border-radius: 3px !important;
+              }
+
+              ::-webkit-scrollbar-thumb,
+              *::-webkit-scrollbar-thumb {
+                  background: #e10600 !important;
+                  border-radius: 3px !important;
+              }
+
+              ::-webkit-scrollbar-thumb:hover,
+              *::-webkit-scrollbar-thumb:hover {
+                  background: #ff1e18 !important;
+              }
+
+              body,
+              html {
+                  width: 100%;
+                  min-height: 100vh;
+                  font-family: 'Montserrat', sans-serif;
+                  background-color: #050505;
+                  color: #ffffff;
+                  overflow-x: hidden;
+              }
+
+
+              /* Popup Responsive Styling */
+
+              .popup-overlay {
+                  position: fixed;
+                  top: 0;
+                  left: 0;
+                  width: 100%;
+                  height: 100%;
+                  background-color: rgba(0, 0, 0, 0.8);
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  visibility: hidden;
+                  opacity: 0;
+                  transition: visibility 0.3s, opacity 0.3s;
+                  z-index: 999999;
+                  padding: 20px;
+              }
+
+              .popup {
+                  position: relative;
+                  width: 90%;
+                  max-width: 750px;
+                  text-align: center;
+                  margin: auto;
+              }
+
+              .popup-picture {
+                  display: block;
+                  width: 100%;
+              }
+
+              .popup-img {
+                  width: 100%;
+                  height: auto;
+                  display: block;
+                  border-radius: 12px;
+                  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+              }
+
+              .popup-overlay.show {
+                  visibility: visible;
+                  opacity: 1;
+              }
+
+              /* end of Popup */
+
+              /* Main Container with Hero Image Background Slider */
+              .hero-wrapper {
+                  position: relative;
+                  width: 100%;
+                  min-height: 100vh;
+                  background-color: #050505;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  padding: 40px 0;
+                  overflow: hidden;
+              }
+
+              /* Hero Background Slider */
+              .hero-bg-slider {
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  right: 0;
+                  bottom: 0;
+                  width: 100%;
+                  height: 100%;
+                  z-index: 0;
+                  overflow: hidden;
+              }
+
+              .hero-bg-slider .hero-section,
+              .hero-bg-slider .slider,
+              .hero-bg-slider .slider-mobile,
+              .hero-bg-slider .slider div,
+              .hero-bg-slider .slider-mobile div {
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  width: 100%;
+                  height: 100%;
+              }
+
+              .hero-bg-slider video {
+                  position: absolute;
+                  top: 50%;
+                  left: 50%;
+                  width: 100% !important;
+                  height: 100% !important;
+                  min-width: 100% !important;
+                  min-height: 100% !important;
+                  object-fit: cover !important;
+                  object-position: center !important;
+                  transform: translate(-50%, -50%);
+                  display: block !important;
+              }
+
+              .hero-slide {
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  width: 100%;
+                  height: 100%;
+                  background-position: center center;
+                  background-repeat: no-repeat;
+                  background-size: cover;
+                  opacity: 0;
+                  transition: opacity 1.2s ease-in-out;
+              }
+
+              .hero-slide.active {
+                  opacity: 1;
+              }
+
+              .desktop-slide {
+                  display: block;
+              }
+
+              .mobile-slide {
+                  display: none;
+              }
+
+              @media (max-width: 991px) {
+                  .desktop-slide {
+                      display: none !important;
+                  }
+
+                  .mobile-slide {
+                      display: block !important;
+                  }
+              }
+
+              /* Dark Vignette Overlay */
+              .hero-overlay {
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  width: 100%;
+                  height: 100%;
+                  background: radial-gradient(circle at center, rgba(5, 5, 5, 0.4) 0%, rgba(0, 0, 0, 0.62) 100%);
+                  z-index: 1;
+              }
+
+              /* Outer Layout Container */
+              .hero-container {
+                  position: relative;
+                  z-index: 2;
+                  width: 100%;
+                  max-width: 1440px;
+                  padding: 0 40px;
+                  margin: 0 auto;
+              }
+
+              .hero-row {
+                  display: flex;
+                  flex-wrap: wrap;
+                  align-items: center;
+                  justify-content: space-between;
+              }
+
+              /* Left Branding Column */
+              .content-col {
+                  flex: 0 0 48%;
+                  max-width: 45%;
+                  padding-right: 30px;
+              }
+
+              .hero-brand-picture {
+                  display: block;
+                  width: 100%;
+              }
+
+              .hero-brand-img {
+                  max-width: 100%;
+                  height: auto;
+                  display: block;
+              }
+
+              .logo-box {
+                  margin-bottom: 45px;
+              }
+
+              .logo-box img {
+                  max-width: 160px;
+                  height: auto;
+              }
+
+              .headline-win {
+                  font-family: 'Orbitron', 'Montserrat', sans-serif;
+                  font-size: 58px;
+                  font-weight: 900;
+                  letter-spacing: 2px;
+                  line-height: 1.05;
+                  text-transform: uppercase;
+                  color: #ffffff;
+                  margin-bottom: 12px;
+              }
+
+              .highlight-red {
+                  color: #e10600;
+                  text-shadow: 0 0 25px rgba(225, 6, 0, 0.5);
+              }
+
+              /* Outlined Stroke Display Typography */
+              .headline-stroke {
+                  font-family: 'Orbitron', 'Montserrat', sans-serif;
+                  font-size: 48px;
+                  font-weight: 900;
+                  letter-spacing: 3px;
+                  line-height: 1.15;
+                  text-transform: uppercase;
+                  color: transparent;
+                  -webkit-text-stroke: 1.8px #ffffff;
+                  margin-bottom: 35px;
+              }
+
+              .subtitle-box {
+                  border-left: 3.5px solid #e10600;
+                  padding-left: 20px;
+                  margin-top: 35px;
+              }
+
+              .subtitle-box h4 {
+                  font-family: 'Orbitron', 'Montserrat', sans-serif;
+                  font-size: 20px;
+                  font-weight: 800;
+                  text-transform: uppercase;
+                  letter-spacing: 1px;
+                  color: #ffffff;
+                  margin-bottom: 8px;
+              }
+
+              .subtitle-box p {
+                  font-size: 14.5px;
+                  font-weight: 400;
+                  color: #d1d1d1;
+                  line-height: 1.5;
+                  margin: 0;
+              }
+
+              /* Right Form Column */
+              .form-col {
+                  flex: 0 0 58%;
+                  max-width: 54%;
+                  position: relative;
+              }
+
+              .form-col::before {
+                  content: '';
+                  position: absolute;
+                   top: -1000px!important;
+                  bottom: -1000px!important; 
+                  top: -10px;
+                  bottom: -10px;
+                  left: 0;
+                  right: 0;
+                  background: url('https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6aac68f5defc5728a96af790.png') no-repeat center center;
+                  background-size: cover;
+                           border-left: 1.5px solid rgb(151 149 149 / 25%);
+                  border-right: 1.5px solid rgb(151 149 149 / 25%); 
+                  border: 1.5px solid rgb(201 193 193 / 25%);
+                  /* box-shadow: -15px 0 35px rgba(0, 0, 0, 0.85), 15px 0 35px rgba(0, 0, 0, 0.85);*/
+                  z-index: 1;
+                  pointer-events: none;
+              }
+
+              /* Form Container Box */
+              .form-card,
+              .giveaway-form-card {
+                  position: relative;
+                  z-index: 2;
+                  width: 100%;
+              }
+
+              /* Form Header with Red Accent Bar */
+              .form-header {
+                  display: flex;
+                  align-items: flex-start;
+                  margin-bottom: 35px;
+              }
+
+              .red-bar {
+                  width: 3.5px;
+                  height: 48px;
+                  background-color: #e10600;
+                  margin-right: 15px;
+                  flex-shrink: 0;
+                  box-shadow: 0 0 12px rgba(225, 6, 0, 0.6);
+              }
+
+              .header-text h2 {
+                  font-family: 'Orbitron', 'Montserrat', sans-serif;
+                  font-size: 32px;
+                  font-weight: 900;
+                  letter-spacing: 1.5px;
+                  color: #ffffff;
+                  text-transform: uppercase;
+                  margin: 0;
+                  line-height: 1;
+              }
+
+              .header-text p {
+                  font-size: 13.5px;
+                  color: #cccccc;
+                  margin: 6px 0 0 0;
+                  font-weight: 400;
+              }
+
+              /* 2-Column Input Grid */
+              .form-grid {
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  column-gap: 25px;
+                  row-gap: 28px;
+                  margin-bottom: 35px;
+              }
+
+              .input-group-custom {
+                  display: flex;
+                  flex-direction: column;
+              }
+
+              .input-group-custom label {
+                  font-size: 13.5px;
+                  font-weight: 500;
+                  color: #ffffff;
+                  margin-bottom: 8px;
+                  letter-spacing: 0.3px;
+              }
+
+              .input-group-custom input {
+                  background: transparent;
+                  border: none;
+                  border-bottom: 1.5px solid rgba(255, 255, 255, 0.6);
+                  color: #ffffff;
+                  font-size: 15px;
+                  padding: 6px 0;
+                  outline: none;
+                  border-radius: 0;
+                  transition: border-color 0.3s ease;
+              }
+
+              .input-group-custom input:focus {
+                  border-bottom-color: #e10600;
+              }
+
+              /* Partner Offerings Section */
+              .offerings-section {
+                  margin-bottom: 30px;
+              }
+
+              .offerings-label {
+                  display: block;
+                  font-size: 13.5px;
+                  font-weight: 500;
+                  color: #ffffff;
+                  margin-bottom: 14px;
+                  line-height: 1.4;
+              }
+
+              .offerings-grid {
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 12px;
+              }
+
+              .offering-card {
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-start;
+                  padding: 15px 18px;
+                  border: 1px solid rgba(255, 255, 255, 0.22);
+                  background: rgba(15, 15, 15, 0.45);
+                  border-radius: 2px;
+                  cursor: pointer;
+                  transition: all 0.25s ease;
+                  user-select: none;
+                  font-size: 13.5px;
+                  font-weight: 500;
+                  color: #ffffff;
+              }
+
+              .offering-card:hover {
+                  border-color: rgba(225, 6, 0, 0.6);
+                  background: rgba(30, 10, 10, 0.5);
+              }
+
+              .offering-card.active {
+                  border-color: #990500;
+                  background: rgba(100, 8, 8, 0.3);
+                  box-shadow: inset 0 0 12px rgba(225, 6, 0, 0.2);
+              }
+
+              /* GHL Form Builder Checkbox Classes (Button Card Styles) */
+              .option-checkbox-bubble {
+                  position: relative;
+                  display: inline-block !important;
+                  width: 50% !important;
+                  padding: 6px !important;
+                  box-sizing: border-box !important;
+              }
+
+              .bubble-checkbox {
+                  width: 100% !important;
+                  margin: 0 !important;
+              }
+
+              .bubble-checkbox-label.bubble-checkbox-container {
+                  display: flex !important;
+                  align-items: center !important;
+                  justify-content: flex-start !important;
+                  width: 100% !important;
+                  min-width: 100% !important;
+                  max-width: 100% !important;
+                  padding: 14px 16px !important;
+                  border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+                  background: rgba(15, 15, 15, 0.6) !important;
+                  border-radius: 4px !important;
+                  color: #ffffff !important;
+                  font-size: 13.5px !important;
+                  font-weight: 500 !important;
+                  cursor: pointer !important;
+                  transition: all 0.25s ease-in-out !important;
+                  box-sizing: border-box !important;
+              }
+
+              .bubble-checkbox-label.bubble-checkbox-container:hover {
+                  border-color: rgba(225, 6, 0, 0.8) !important;
+                  background: rgba(40, 10, 10, 0.6) !important;
+              }
+
+              /* Hide raw browser checkbox inside button card or style checked state */
+              .bubble-checkbox-label.bubble-checkbox-container input[type="checkbox"] {
+                  margin-right: 10px !important;
+                  accent-color: #e10600 !important;
+                  width: 16px !important;
+                  height: 16px !important;
+              }
+
+              .bubble-checkbox-label.bubble-checkbox-container:has(input:checked) {
+                  border-color: #e10600 !important;
+                  background: rgba(120, 10, 10, 0.35) !important;
+                  box-shadow: 0 0 10px rgba(225, 6, 0, 0.3) !important;
+              }
+
+
+              /* Consent Checkbox */
+              .consent-group {
+                  margin-bottom: 32px;
+              }
+
+              .checkbox-container {
+                  display: flex;
+                  align-items: flex-start;
+                  gap: 12px;
+                  cursor: pointer;
+                  position: relative;
+              }
+
+              .checkbox-container input[type="checkbox"] {
+                  position: absolute;
+                  opacity: 0;
+                  cursor: pointer;
+                  height: 0;
+                  width: 0;
+              }
+
+              .checkmark {
+                  width: 18px;
+                  height: 18px;
+                  border: 1.5px solid rgba(255, 255, 255, 0.7);
+                  border-radius: 2px;
+                  flex-shrink: 0;
+                  margin-top: 2px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  background: transparent;
+                  transition: all 0.2s ease;
+              }
+
+              .checkbox-container input:checked~.checkmark {
+                  background: #e10600;
+                  border-color: #e10600;
+              }
+
+              .checkmark:after {
+                  content: '';
+                  width: 5px;
+                  height: 9px;
+                  border: solid white;
+                  border-width: 0 2px 2px 0;
+                  transform: rotate(45deg);
+                  margin-top: -2px;
+                  display: none;
+              }
+
+              .checkbox-container input:checked~.checkmark:after {
+                  display: block;
+              }
+
+              .consent-text {
+                  font-size: 11.5px;
+                  color: #bbbbbb;
+                  line-height: 1.45;
+              }
+
+              .consent-text a {
+                  color: #0099ff;
+                  text-decoration: none;
+              }
+
+              .consent-text a:hover {
+                  text-decoration: underline;
+              }
+
+              /* Submit Button */
+              .btn-submit-giveaway {
+                  width: 100%;
+                  background-color: #e10600;
+                  color: #ffffff;
+                  font-family: 'Orbitron', 'Montserrat', sans-serif;
+                  font-size: 18px;
+                  font-weight: 900;
+                  text-transform: uppercase;
+                  padding: 18px 0;
+                  border: none;
+                  border-radius: 2px;
+                  cursor: pointer;
+                  letter-spacing: 1.5px;
+                  transition: all 0.3s ease;
+                  box-shadow: 0 5px 20px rgba(225, 6, 0, 0.45);
+              }
+
+              .btn-submit-giveaway:hover {
+                  background-color: #ff0800;
+                  transform: translateY(-2px);
+                  box-shadow: 0 8px 25px rgba(225, 6, 0, 0.65);
+              }
+
+              /* Optional Toggle for iFrame Embed vs Native Layout */
+              .embed-toggle-bar {
+                  margin-top: 15px;
+                  text-align: right;
+              }
+
+              .embed-toggle-btn {
+                  background: transparent;
+                  border: none;
+                  color: #888;
+                  font-size: 11px;
+                  text-decoration: underline;
+                  cursor: pointer;
+              }
+
+
+              /* Checbox Customize Button */
+
+              /* GHL Form Builder Checkbox Classes (Button Card Styles) */
+              .option-checkbox-bubble {
+                  position: relative;
+                  display: inline-block !important;
+                  width: 50% !important;
+                  padding: 6px !important;
+                  box-sizing: border-box !important;
+              }
+
+              .bubble-checkbox {
+                  width: 100% !important;
+                  margin: 0 !important;
+              }
+
+              .bubble-checkbox-label.bubble-checkbox-container {
+                  display: flex !important;
+                  align-items: center !important;
+                  justify-content: flex-start !important;
+                  width: 100% !important;
+                  min-width: 100% !important;
+                  max-width: 100% !important;
+                  padding: 14px 16px !important;
+                  border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+                  background: rgba(15, 15, 15, 0.6) !important;
+                  border-radius: 4px !important;
+                  color: #ffffff !important;
+                  font-size: 13.5px !important;
+                  font-weight: 500 !important;
+                  cursor: pointer !important;
+                  transition: all 0.25s ease-in-out !important;
+                  box-sizing: border-box !important;
+              }
+
+              .bubble-checkbox-label.bubble-checkbox-container:hover {
+                  border-color: rgba(225, 6, 0, 0.8) !important;
+                  background: rgba(40, 10, 10, 0.6) !important;
+              }
+
+              .bubble-checkbox-label.bubble-checkbox-container input[type="checkbox"] {
+                  margin-right: 10px !important;
+                  accent-color: #e10600 !important;
+                  width: 16px !important;
+                  height: 16px !important;
+              }
+
+              .bubble-checkbox-label.bubble-checkbox-container:has(input:checked) {
+                  border-color: #e10600 !important;
+                  background: rgba(120, 10, 10, 0.35) !important;
+                  box-shadow: 0 0 10px rgba(225, 6, 0, 0.3) !important;
+              }
+
+
+
+              /* Prize Banner Section */
+              .prize-banner-section {
+                  width: 100%;
+                  background-color: #050505;
+                  line-height: 0;
+                  overflow: hidden;
+              }
+
+              .prize-banner-img {
+                  width: 100%;
+                  height: auto;
+                  display: block;
+                  margin: 0 auto;
+              }
+
+              /* Campaign Details Section */
+              .campaign-details-section {
+                  position: relative;
+                  width: 100%;
+                  background-color: #050505;
+                  padding: 108px 0px 168px 0px;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+              }
+
+              .campaign-details-container {
+                  width: 100%;
+                  max-width: 1200px;
+                  margin: 0 auto;
+                  text-align: center;
+              }
+
+              .campaign-details-picture {
+                  display: block;
+                  width: 100%;
+              }
+
+              .campaign-details-img {
+                  max-width: 100%;
+                  height: auto;
+                  display: block;
+                  margin: 0 auto;
+              }
+
+              .read-more-wrapper {
+                  margin-top: 59px;
+                  text-align: center;
+              }
+
+              .read-more-btn {
+                  display: inline-block;
+                  transition: transform 0.2s ease, opacity 0.2s ease;
+                  cursor: pointer;
+              }
+
+              .read-more-btn:hover {
+                  transform: translateY(-2px);
+                  opacity: 0.9;
+              }
+
+              .read-more-btn img {
+                  max-width: 100%;
+                  height: auto;
+                  display: block;
+                  margin: 0 auto;
+              }
+
+              /* Scroll To Top Button with Floating Bubble Effect */
+              .scroll-to-top-btn {
+                  position: absolute;
+                  bottom: 90px;
+                  right: 40px;
+                  width: 50px;
+                  height: 50px;
+                  background: transparent;
+                  border: none;
+                  border-radius: 50%;
+                  cursor: pointer;
+                  z-index: 10;
+                  padding: 0;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                  animation: bubbleFloat 3s ease-in-out infinite;
+                  outline: none;
+                  filter: drop-shadow(0 0 8px rgba(225, 6, 0, 0.4));
+              }
+
+              .scroll-to-top-btn:hover {
+                  transform: translateY(-6px) scale(1.15);
+                  filter: drop-shadow(0 0 18px rgba(225, 6, 0, 0.85));
+                  animation-play-state: paused;
+              }
+
+              .scroll-to-top-btn:active {
+                  transform: scale(0.92);
+              }
+
+              .scroll-to-top-btn img {
+                  width: 100%;
+                  height: 100%;
+                  object-fit: contain;
+                  display: block;
+                  transition: transform 0.3s ease;
+              }
+
+              @keyframes bubbleFloat {
+
+                  0%,
+                  100% {
+                      transform: translateY(0);
+                      filter: drop-shadow(0 0 8px rgba(225, 6, 0, 0.3));
+                  }
+
+                  50% {
+                      transform: translateY(-10px);
+                      filter: drop-shadow(0 0 16px rgba(225, 6, 0, 0.65));
+                  }
+              }
+
+              /* Responsive Styles */
+              @media (max-width: 1199px) {
+                  .headline-win {
+                      font-size: 48px;
+                  }
+
+                  .headline-stroke {
+                      font-size: 40px;
+                  }
+
+                  .campaign-details-img {
+                          max-width: 90%;
+                        }
+              }
+
+              @media (max-width: 991px) {
+
+                .form-col:before{
+                  display:none;
+                }
+
+                #section-YtGiUjQuCg, #row-9-2pVUYEd0, #col-VxD46Dh1dJ{
+                  padding:0!important;
+                  margin:0!important;
+                }
+                  .hero-wrapper {
+                      position: relative;
+                      width: 100%;
+                      height: 85vh;
+                      min-height: 480px;
+                      padding: 40px 0;
+                      background-color: #050505;
+                  }
+
+                  .hero-container {
+                      padding: 0 20px;
+                      height: 100%;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                  }
+
+                  .hero-row {
+                      display: flex;
+                      width: 100%;
+                      justify-content: center;
+                  }
+
+                  .content-col {
+                      flex: 0 0 100%;
+                      max-width: 100%;
+                      padding: 0;
+                      margin: 0 auto;
+                      text-align: center;
+                  }
+
+                  .hero-brand-picture,
+                  .hero-brand-img {
+                      display: block;
+                      margin: 0 auto;
+                      cursor: pointer;
+                  }
+
+                  /* Completely Hide Form inside Hero on Mobile */
+                  .hero-row .form-col {
+                      display: none !important;
+                  }
+
+                 /* Mobile-only Separated Form Section */
+                   .mobile-form-section {
+                      display: block;
+                      width: 100%;
+                      background-color:  #000000;
+                      background-size: cover;
+                      padding: 50px 20px 70px 20px;
+                      border-top: 0;
+                  }
+
+                  .form-col::before {
+                      content: '';
+                      position: absolute;
+                      top: -1000px;
+                      bottom: -1000px;
+                      left: 0;
+                      right: 0;
+                      background: transparent;
+                      background-size: cover;
+                      border-left: 0;
+                      border-right: 0;
+                      box-shadow: none;
+                      z-index: 1;
+                      pointer-events: none;
+                  }
+
+                  .mobile-form-section .form-col {
+                      display: block !important;
+                      width: 100%;
+                      max-width: 100%;
+                      margin: 0 auto;
+                  }
+
+                  .popup {
+                      width: 92%;
+                      max-width: 450px;
+                  }
+              }
+
+              @media (min-width: 992px) {
+                  .mobile-form-section {
+                      display: none !important;
+                  }
+              }
+
+              @media (max-width: 768px) {
+                
+                .hero-brand-img {
+                    max-width: 93%;
+
+                  }
+                
+                  .hero-container {
+                      padding: 0 20px;
+                  }
+
+                  .giveaway-form-card {
+                      padding: 30px 20px;
+                  }
+
+                  .form-grid,
+                  .offerings-grid {
+                      grid-template-columns: 1fr;
+                  }
+
+                  .headline-win {
+                      font-size: 36px;
+                  }
+
+                  .headline-stroke {
+                      font-size: 28px;
+                      -webkit-text-stroke: 1.2px #ffffff;
+                  }
+
+                  .header-text h2 {
+                      font-size: 24px;
+                  }
+
+                  .scroll-to-top-btn {
+                      bottom: 20px;
+                      right: 20px;
+                      width: 42px;
+                      height: 42px;
+                  }
+              }
+      </style>
+  </head>
+
+  <body>
+
+      <div class="popup-overlay" id="popupOverlay">
+          <div class="popup">
+              <a href="https://megarewards.au/">
+                  <picture class="popup-picture">
+
+                      <source media="(max-width: 991px)"
+                          srcset="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6aeac6a634f579147373e74d.jpg">
+
+                      <img src="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6aeac6a7fb31f444f217d6de.jpg"
+                          alt="Tickford Raceday Experience Sandown" class="popup-img">
+                  </picture>
+              </a>
+          </div>
+      </div> 
+      <div class="hero-wrapper">
+          <!-- Background Slider Slides -->
+          <div class="hero-bg-slider">
+              <div class="hero-section d-none d-md-block">
+                  <div class="slider">
+
+                      <div>
+                          <video autoplay loop muted playsinline style="width: 100%; height: 100%; object-fit: cover; display: block;">
+                              <source src="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad8414d436f78fefbd3a498.mp4" type="video/mp4">
+                          </video>
+
+                      </div>
+
+                  </div>
+              </div>
+
+              <div class="slider-mobile d-block d-md-none">
+                  <div>
+                      <video autoplay loop muted playsinline style="width: 100%; height: 100%; object-fit: cover; display: block;">
+                          <source src="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad84151cd7225ed3726570d.mp4" type="video/mp4">
+                      </video>
+                  </div>
+              </div>
+
+          </div>
+
+          <div class="hero-overlay"></div>
+
+          <div class="hero-container">
+              <div class="hero-row">
+
+                  <!-- Left Branding Column -->
+                  <div class="content-col">
+                      <picture class="hero-brand-picture">
+                          <!-- Tablet & Mobile Image -->
+                          <source media="(max-width: 991px)"
+                              srcset="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad85428f9a985d42c51e1c6.svg">
+                          <!-- Desktop Image -->
+                          <img src="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad8414d3cacdd911701ce02.svg"
+                              alt="Tickford Raceday Experience Sandown" class="hero-brand-img">
+                      </picture>
+                  </div>
+
+                  <!-- Right Form Column -->
+                  <div class="form-col">
+                      <div class="form-card">
+
+                        <script>
+                      (function () {
+
+    // --- login_token (unchanged) ---
+    var array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    var token = Array.from(array)
+        .map(function (byte) { return byte.toString(16).padStart(2, '0'); })
+        .join('');
+
+    document.cookie =
+        'mega_test_registration=' + encodeURIComponent(token) +
+        '; Domain=.megarewards.au; Path=/; Max-Age=900; Secure; SameSite=Lax';
+
+    window.megaLoginToken = token;
+
+    // --- event_id: reuse existing cookie, or create one ---
+    function getCookie(name) {
+        var match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? decodeURIComponent(match[2]) : null;
+    }
+
+    var eventId = getCookie('event_id');
+
+    if (!eventId) {
+        eventId = 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2);
+        document.cookie =
+            'event_id=' + encodeURIComponent(eventId) +
+            '; Domain=.megarewards.au; Path=/; Max-Age=86400; Secure; SameSite=Lax';
+    }
+
+    window.megaEventId = eventId;
+
+})();
+                        </script>
+                          <iframe
+      src="https://link.megarewards.au/widget/form/Iz43ovW98h6RXYiCjoHR"
+      style="width:100%;height:100%;border:none;border-radius:1px"
+      id="inline-Iz43ovW98h6RXYiCjoHR" 
+      data-layout="{'id':'INLINE'}"
+      data-trigger-type="alwaysShow"
+      data-trigger-value=""
+      data-activation-type="alwaysActivated"
+      data-activation-value=""
+      data-deactivation-type="neverDeactivate"
+      data-deactivation-value=""
+      data-form-name="Tickford Raceday Experience Sandown - Main"
+      data-height="1465"
+      data-layout-iframe-id="inline-Iz43ovW98h6RXYiCjoHR"
+      data-form-id="Iz43ovW98h6RXYiCjoHR"
+      data-cookie-consent="true"
+      data-cookie-consent-provider="auto"
+      title="Tickford Raceday Experience Sandown - Main"
+
+          >
+  </iframe>
+  <script>
+ (function () {
+    var iframe = document.getElementById('inline-Iz43ovW98h6RXYiCjoHR');
+    if (!iframe || !window.megaLoginToken) return;
+
+    var url = new URL('https://link.megarewards.au/widget/form/Iz43ovW98h6RXYiCjoHR');
+    url.searchParams.set('login_token', window.megaLoginToken);
+    if (window.megaEventId) {
+        url.searchParams.set('event_id', window.megaEventId);
+    }
+
+    iframe.src = url.toString();
+})();
+  </script>
+  <script src="https://link.megarewards.au/js/form_embed.js"></script>
+                      </div>
+                  </div>
+
+              </div>
+          </div>
+      </div>
+      <!-- Mobile-Only Form Section (Separated below Hero Image) -->
+<div class="mobile-form-section" id="mobileFormSection">
+    <div class="form-col">
+        <div class="form-card">
+
+            <iframe
+                src="about:blank"
+                style="width:100%;height:100%;border:none;border-radius:1px"
+                id="inline-Iz43ovW98h6RXYiCjoHR-mobile"
+                data-layout="{'id':'INLINE'}"
+                data-trigger-type="alwaysShow"
+                data-trigger-value=""
+                data-activation-type="alwaysActivated"
+                data-activation-value=""
+                data-deactivation-type="neverDeactivate"
+                data-deactivation-value=""
+                data-form-name="Tickford Raceday Experience Sandown - Main"
+                data-height="1465"
+                data-layout-iframe-id="inline-Iz43ovW98h6RXYiCjoHR-mobile"
+                data-form-id="Iz43ovW98h6RXYiCjoHR"
+                data-cookie-consent="true"
+                data-cookie-consent-provider="auto"
+                title="Tickford Raceday Experience Sandown - Main">
+            </iframe>
+
+            <script>
+             (function () {
+
+                var iframe = document.getElementById(
+                    'inline-Iz43ovW98h6RXYiCjoHR-mobile'
+                );
+
+                if (!iframe || !window.megaLoginToken) {
+                    return;
+                }
+
+                var url = new URL(
+                    'https://link.megarewards.au/widget/form/Iz43ovW98h6RXYiCjoHR'
+                );
+
+                url.searchParams.set(
+                    'login_token',
+                    window.megaLoginToken
+                );
+
+                iframe.src = url.toString();
+
+            })();
+            </script>
+
+            <script src="https://link.megarewards.au/js/form_embed.js"></script>
+
+        </div>
+    </div>
+</div>
+     <section class="prize-banner-section">
+          <picture>
+              <!-- Tablet and Mobile View -->
+              <source media="(max-width: 991px)"
+                  srcset="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad841513cacdd911701ce41.jpg">
+              <!-- Desktop View -->
+              <img src="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad8414d436f78fefbd3a497.jpg"
+                  alt="What You Could Win" class="prize-banner-img">
+          </picture>
+      </section>
+
+      <!-- Campaign Details Section -->
+      <section class="campaign-details-section">
+          <div class="campaign-details-container">
+              <!-- Title + Details Image -->
+              <picture class="campaign-details-picture">
+                  <!-- Tablet & Mobile Image -->
+                  <source media="(max-width: 991px)"
+                      srcset="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad84152436f78fefbd3a4c3.svg">
+                  <!-- Desktop Image -->
+                  <img src="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad8414d436f78fefbd3a487.svg"
+                      alt="Campaign Details" class="campaign-details-img">
+              </picture>
+
+              <!-- Read More Details Button -->
+              <div class="read-more-wrapper">
+                  <a href="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6ad84280cd7225ed372679a8.pdf" class="read-more-btn" target="_blank">
+                      <img src="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6aac3357bdaa5e26a90858b5.svg"
+                          alt="Read Full Terms and Conditions">
+                  </a>
+              </div>
+          </div>
+
+          <!-- Scroll to Top Button -->
+          <button id="scrollToTopBtn" class="scroll-to-top-btn" aria-label="Scroll to top">
+              <img src="https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/6aac3341254a2c54081a0dba.png"
+                  alt="Scroll to Top">
+          </button>
+      </section>
+
+      <script>
+          // Smooth Scroll to Top
+          document.getElementById('scrollToTopBtn').addEventListener('click', function () {
+              window.scrollTo({
+                  top: 0,
+                  behavior: 'smooth'
+              });
+          });
+
+          // Hero Background Image Slider (Independent for Desktop and Mobile)
+          (function () {
+              function runSlider(selector) {
+                  const slides = document.querySelectorAll(selector);
+                  if (!slides || slides.length <= 1) return;
+                  let currentIndex = 0;
+                  setInterval(function () {
+                      slides[currentIndex].classList.remove('active');
+                      currentIndex = (currentIndex + 1) % slides.length;
+                      slides[currentIndex].classList.add('active');
+                  }, 5000);
+              }
+
+              runSlider('.desktop-slide');
+              runSlider('.mobile-slide');
+          })();
+
+          // Click on hero-brand-picture on mobile to scroll to form section
+          (function initBrandImageScroll() {
+              function scrollToMobileForm() {
+                  if (window.innerWidth <= 991) {
+                      const mobileForm = document.getElementById('mobileFormSection');
+                      if (mobileForm) {
+                          mobileForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                  }
+              }
+
+              function attachListeners() {
+                  const brandPic = document.querySelector('.hero-brand-picture');
+                  const brandImg = document.querySelector('.hero-brand-img');
+                  const targets = [brandPic, brandImg].filter(Boolean);
+
+                  targets.forEach(el => {
+                      el.removeEventListener('click', scrollToMobileForm);
+                      el.addEventListener('click', scrollToMobileForm);
+                  });
+              }
+
+              if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', attachListeners);
+              } else {
+                  attachListeners();
+              }
+          })();
+      </script>
+
+      <script>
+          document.addEventListener('DOMContentLoaded', () => {
+              const popupOverlay = document.getElementById('popupOverlay');
+
+              if (!popupOverlay) return;
+
+              // Show popup on page load permanently
+              setTimeout(() => {
+                  popupOverlay.classList.add('show');
+              }, 300);
+          });
+      </script>
+
+      <!-- ===================== CONFETTI ===================== -->
+
+      <!-- 1. Confetti library (placed in the body, not the head, so page builders can't strip it) -->
+      <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+      <!-- 2. Fallback: if the first CDN was blocked, load the library from a second CDN -->
+      <script>
+          if (typeof confetti !== 'function') {
+              document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.2/confetti.browser.min.js"><\/script>');
+          }
+      </script>
+
+      <!-- 3. Confetti function -->
+      <script>
+          function launchConfetti() {
+              // Safety check: do nothing (and don't throw) if the library didn't load
+              if (typeof confetti !== 'function') {
+                  console.warn('canvas-confetti library did not load');
+                  return;
+              }
+
+              var duration = 3 * 1000;
+              var animationEnd = Date.now() + duration;
+              // zIndex is above the popup overlay (999999) so confetti isn't hidden behind it
+              var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1000001 };
+
+              function randomInRange(min, max) {
+                  return Math.random() * (max - min) + min;
+              }
+
+              (function frame() {
+                  confetti({
+                      particleCount: 10,
+                      angle: randomInRange(55, 125),
+                      spread: 70,
+                      origin: { x: Math.random(), y: Math.random() - 0.2 },
+                      ...defaults
+                  });
+
+                  if (Date.now() < animationEnd) {
+                      requestAnimationFrame(frame);
+                  }
+              })();
+          }
+      </script>
+
+      <!-- 4. Trigger (original logic, unchanged) -->
+      <script>
+          var formClosed = "{{custom_values.test_form_closing}}";
+
+          // Override launchConfetti immediately (before DOMContentLoaded fires)
+          // so the original script cannot call it unless we allow it
+          if (formClosed.trim().toLowerCase() !== "true") {
+              launchConfetti = function () { }; // neutralize it
+          }
+
+          document.addEventListener('DOMContentLoaded', () => {
+              const popupOverlay = document.getElementById('popupOverlay');
+              if (!popupOverlay) return;
+
+              if (formClosed.trim().toLowerCase() === "true") {
+                  setTimeout(() => {
+                      popupOverlay.classList.add('show');
+                      launchConfetti();
+                  }, 1000);
+              } else {
+                  popupOverlay.style.display = 'none';
+              }
+          });
+      </script>
+
+  </body>
+
+  </html>

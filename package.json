@@ -1,0 +1,98 @@
+{
+  "name": "landing-page-studio",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Local Desktop Application for Visual Landing Page Editing, Image Management, GoHighLevel Forms, and HTML Code Generation",
+  "main": "dist-electron/main/index.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build:electron": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist-electron/main/index.cjs --external:electron && esbuild src/preload/index.ts --bundle --platform=node --outfile=dist-electron/preload/index.cjs --external:electron && node -e \"import('fs').then(fs => { fs.writeFileSync('dist-electron/main/index.js', 'import \\\"./index.cjs\\\";\\n'); fs.writeFileSync('dist-electron/preload/index.js', 'import \\\"./index.cjs\\\";\\n'); })\"",
+    "build": "vite build && npm run build:electron",
+    "start": "electron dist-electron/main/index.cjs",
+    "dev:electron": "concurrently -k \"vite\" \"wait-on tcp:5188 && electron .\"",
+    "test": "esbuild test/suite.js --bundle --platform=node --format=esm --outfile=dist/test-suite.js && node dist/test-suite.js",
+    "package:exe": "npm run build && electron-builder --win portable",
+    "package:win": "npm run package:exe"
+  },
+  "build": {
+    "appId": "com.pryvix.landingpagestudio",
+    "productName": "Pryvix Landing Page Studio",
+    "executableName": "LandingPageStudio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "pryvix-brand-assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "pryvix-brand-assets/favicon.ico",
+      "executableName": "LandingPageStudio",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "LandingPageStudio.exe"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "category": "Development"
+    }
+  },
+  "keywords": [
+    "landing-page",
+    "gohighlevel",
+    "ghl",
+    "visual-editor",
+    "electron",
+    "react"
+  ],
+  "author": "Landing Page Studio",
+  "license": "MIT",
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "clsx": "^2.1.1",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.475.0",
+    "parse5": "^7.2.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sql.js": "^1.12.0",
+    "tailwind-merge": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/sql.js": "^1.4.9",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.18.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "wait-on": "^8.0.3"
+  }
+}
