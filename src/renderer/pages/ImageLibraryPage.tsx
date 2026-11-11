@@ -161,6 +161,22 @@ export const ImageLibraryPage: React.FC = () => {
       setHasMore(response.hasMore);
       setLastSyncedAt(response.syncedAt);
       setIsFromCache(response.fromCache);
+      setConnectionStatus(prev => ({
+        connected: true,
+        hasToken: true,
+        maskedToken: prev?.maskedToken || '••••••••••••••••••••••••',
+        locationId: response.locationId,
+        requiredScope: prev?.requiredScope || 'medias.readonly',
+        status: 'connected',
+        statusMessage: `Connected to GoHighLevel Media Storage (Location ${response.locationId}).`,
+        lastSyncedAt: response.syncedAt,
+        lastError: null,
+        errorCode: null,
+        stats: {
+          folderCount: response.folders.length,
+          fileCount: response.files.length,
+        },
+      }));
     },
     [activeTab, currentFolder?.id, debouncedQuery, getApiSortParams, offset, sortOption]
   );

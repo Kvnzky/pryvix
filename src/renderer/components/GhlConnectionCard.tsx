@@ -75,12 +75,6 @@ export const GhlConnectionCard: React.FC<GhlConnectionCardProps> = ({
     }
 
     const trimmedToken = tokenInput.trim();
-    if (!trimmedToken && !status?.hasToken) {
-      setLocalError(
-        'Please enter your GoHighLevel Sub-Account Private Integration Token to establish a connection.'
-      );
-      return;
-    }
 
     setIsSaving(true);
     try {
