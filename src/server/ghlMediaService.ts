@@ -12,6 +12,10 @@ import {
   GHLVerifyAssetResult,
 } from '../shared/types';
 import {
+  classifyMediaFile,
+  extractNormalizedExtension,
+} from '../shared/mediaClassifier';
+import {
   DEFAULT_GHL_LOCATION_ID,
   REQUIRED_GHL_SCOPE,
   disconnectGhlCredentials,
@@ -26,12 +30,14 @@ import {
 const GHL_MEDIA_API_ENDPOINT = 'https://services.leadconnectorhq.com/medias/files';
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds metadata cache
 
-interface CacheEntry {
+interface FolderDatasetEntry {
   timestamp: number;
-  response: GHLMediaListResponse;
+  folders: GHLMediaItem[];
+  files: GHLMediaItem[];
+  syncedAt: string;
 }
 
-const mediaMetadataCache = new Map<string, CacheEntry>();
+const folderDatasetCache = new Map<string, FolderDatasetEntry>();
 
 // Simple token-bucket rate limiter per client key
 const rateLimitBuckets = new Map<string, { count: number; windowStart: number }>();
@@ -53,36 +59,7 @@ export function checkBackendRateLimit(clientKey = 'local'): boolean {
 }
 
 export function clearGhlMediaCache(): void {
-  mediaMetadataCache.clear();
-}
-
-const IMAGE_EXTENSIONS = new Set([
-  'jpg',
-  'jpeg',
-  'png',
-  'webp',
-  'gif',
-  'svg',
-  'avif',
-  'bmp',
-  'ico',
-  'jfif',
-]);
-
-const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'avi', 'mkv']);
-
-function extractExtension(nameOrUrl: string): string {
-  if (!nameOrUrl) return '';
-  try {
-    const clean = nameOrUrl.split('?')[0].split('#')[0];
-    const parts = clean.split('.');
-    if (parts.length > 1) {
-      return parts[parts.length - 1].toLowerCase().trim();
-    }
-  } catch {
-    // ignore
-  }
-  return '';
+  folderDatasetCache.clear();
 }
 
 export function classifyMediaItem(raw: any): {
@@ -93,9 +70,10 @@ export function classifyMediaItem(raw: any): {
 } {
   const rawType = String(raw.type || '').toLowerCase().trim();
   const rawMime = String(raw.contentType || raw.mimeType || '').toLowerCase().trim();
-  const ext = extractExtension(raw.name || '') || extractExtension(raw.url || raw.path || '');
+  const rawName = String(raw.name || raw.fileName || '').trim();
+  const rawUrl = String(raw.url || raw.path || '').trim();
 
-  if (rawType === 'folder' || (!raw.url && !raw.path && rawType !== 'file')) {
+  if (rawType === 'folder' || (!rawUrl && !rawName && rawType !== 'file')) {
     return {
       entityType: 'folder',
       mediaCategory: 'folder',
@@ -104,80 +82,37 @@ export function classifyMediaItem(raw: any): {
     };
   }
 
-  // 1. PDF Detection: Prioritize reliable MIME type (application/pdf), handle case-insensitive extension,
-  // and refuse classification as PDF if reliable MIME metadata indicates image or video.
-  const isPdfMime = rawMime === 'application/pdf' || rawMime === 'application/x-pdf' || rawMime.endsWith('/pdf');
-  const hasImageOrVideoMime = rawMime.startsWith('image/') || rawMime.startsWith('video/');
-  const isPdfExt = ext === 'pdf';
+  // Authoritative extension-based classification strictly from the filename (or URL)
+  const ext = extractNormalizedExtension(rawName) || extractNormalizedExtension(rawUrl);
+  const mediaCategory = classifyMediaFile(rawName || rawUrl);
 
-  if (isPdfMime || (isPdfExt && !hasImageOrVideoMime)) {
-    return {
-      entityType: 'file',
-      mediaCategory: 'pdf',
-      mimeType: isPdfMime ? rawMime : 'application/pdf',
-      fileExtension: ext || 'pdf',
-    };
-  }
-
-  if (
-    rawMime.startsWith('video/') ||
-    rawType === 'video' ||
-    VIDEO_EXTENSIONS.has(ext)
-  ) {
-    const inferredMime = rawMime.startsWith('video/')
+  const inferredMime =
+    rawMime && rawMime !== 'application/octet-stream'
       ? rawMime
-      : ext === 'webm'
-      ? 'video/webm'
-      : ext === 'mov'
-      ? 'video/quicktime'
-      : 'video/mp4';
-    return {
-      entityType: 'file',
-      mediaCategory: 'video',
-      mimeType: inferredMime,
-      fileExtension: ext || 'mp4',
-    };
-  }
-
-  if (
-    rawMime.startsWith('image/') ||
-    rawType === 'image' ||
-    IMAGE_EXTENSIONS.has(ext) ||
-    Boolean(raw.url || raw.path)
-  ) {
-    const isActuallyOther =
-      ext && !IMAGE_EXTENSIONS.has(ext) && !VIDEO_EXTENSIONS.has(ext) && !rawMime.startsWith('image/');
-    if (isActuallyOther) {
-      return {
-        entityType: 'file',
-        mediaCategory: 'other',
-        mimeType: rawMime || 'application/octet-stream',
-        fileExtension: ext,
-      };
-    }
-    const inferredMime = rawMime.startsWith('image/')
-      ? rawMime
-      : ext === 'png'
-      ? 'image/png'
-      : ext === 'svg'
-      ? 'image/svg+xml'
-      : ext === 'webp'
-      ? 'image/webp'
-      : ext === 'gif'
-      ? 'image/gif'
-      : 'image/jpeg';
-    return {
-      entityType: 'file',
-      mediaCategory: 'image',
-      mimeType: inferredMime,
-      fileExtension: ext || 'jpg',
-    };
-  }
+      : mediaCategory === 'pdf'
+      ? 'application/pdf'
+      : mediaCategory === 'video'
+      ? ext === 'webm'
+        ? 'video/webm'
+        : ext === 'mov'
+        ? 'video/quicktime'
+        : 'video/mp4'
+      : mediaCategory === 'image'
+      ? ext === 'png'
+        ? 'image/png'
+        : ext === 'svg'
+        ? 'image/svg+xml'
+        : ext === 'webp'
+        ? 'image/webp'
+        : ext === 'gif'
+        ? 'image/gif'
+        : 'image/jpeg'
+      : 'application/octet-stream';
 
   return {
     entityType: 'file',
-    mediaCategory: 'other',
-    mimeType: rawMime || 'application/octet-stream',
+    mediaCategory,
+    mimeType: inferredMime,
     fileExtension: ext,
   };
 }
@@ -363,7 +298,161 @@ function extractRawArrayFromResponse(body: any): any[] {
 }
 
 /**
- * Lists files and folders from GoHighLevel Media Storage API v3.
+ * Exhaustively retrieves all folders and files for a given location and parent folder,
+ * paginating until the complete available result set is gathered, deduplicating,
+ * and caching the complete dataset.
+ */
+async function fetchCompleteFolderDataset(params: {
+  token: string;
+  locationId: string;
+  parentId?: string | null;
+  query?: string;
+  refresh?: boolean;
+}): Promise<{
+  success: boolean;
+  folders: GHLMediaItem[];
+  files: GHLMediaItem[];
+  syncedAt: string;
+  fromCache: boolean;
+  error?: string;
+  errorCode?: NonNullable<GHLMediaListResponse['errorCode']>;
+}> {
+  const parentId = params.parentId ? String(params.parentId).trim() : null;
+  const query = params.query ? String(params.query).trim() : '';
+  const cacheKey = `${params.locationId}::${parentId || 'root'}::${query}`;
+
+  if (!params.refresh) {
+    const cached = folderDatasetCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return {
+        success: true,
+        folders: cached.folders,
+        files: cached.files,
+        syncedAt: cached.syncedAt,
+        fromCache: true,
+      };
+    }
+  }
+
+  // 1. Fetch folders exhaustively for the current parentId / query
+  const allFolders: GHLMediaItem[] = [];
+  const seenFolderIds = new Set<string>();
+  let folderOffset = 0;
+  const FOLDER_PAGE_LIMIT = 100;
+
+  while (true) {
+    const folderRes = await fetchGhlMediaEndpoint({
+      token: params.token,
+      locationId: params.locationId,
+      type: 'folder',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      parentId,
+      query,
+      offset: folderOffset,
+      limit: FOLDER_PAGE_LIMIT,
+    });
+
+    if (folderRes.statusCode < 200 || folderRes.statusCode >= 300) {
+      const errInfo = classifyGhlApiError(folderRes.statusCode, folderRes.body);
+      return {
+        success: false,
+        folders: [],
+        files: [],
+        syncedAt: new Date().toISOString(),
+        fromCache: false,
+        error: errInfo.message,
+        errorCode: errInfo.errorCode,
+      };
+    }
+
+    const rawBatch = extractRawArrayFromResponse(folderRes.body);
+    let addedCount = 0;
+    for (const raw of rawBatch) {
+      const normalized = normalizeGhlRecord({ ...raw, type: 'folder' }, params.locationId);
+      if (normalized && !seenFolderIds.has(normalized.id)) {
+        seenFolderIds.add(normalized.id);
+        allFolders.push(normalized);
+        addedCount++;
+      }
+    }
+
+    if (rawBatch.length < FOLDER_PAGE_LIMIT || addedCount === 0) {
+      break;
+    }
+    folderOffset += FOLDER_PAGE_LIMIT;
+    if (folderOffset >= 5000) break;
+  }
+
+  // 2. Fetch files exhaustively across all pages for the current parentId / query
+  const allFiles: GHLMediaItem[] = [];
+  const seenFileIds = new Set<string>();
+  let fileOffset = 0;
+  const FILE_PAGE_LIMIT = 100;
+
+  while (true) {
+    const fileRes = await fetchGhlMediaEndpoint({
+      token: params.token,
+      locationId: params.locationId,
+      type: 'file',
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+      parentId,
+      query,
+      offset: fileOffset,
+      limit: FILE_PAGE_LIMIT,
+    });
+
+    if (fileRes.statusCode < 200 || fileRes.statusCode >= 300) {
+      const errInfo = classifyGhlApiError(fileRes.statusCode, fileRes.body);
+      return {
+        success: false,
+        folders: [],
+        files: [],
+        syncedAt: new Date().toISOString(),
+        fromCache: false,
+        error: errInfo.message,
+        errorCode: errInfo.errorCode,
+      };
+    }
+
+    const rawBatch = extractRawArrayFromResponse(fileRes.body);
+    let addedCount = 0;
+    for (const raw of rawBatch) {
+      const normalized = normalizeGhlRecord(raw, params.locationId);
+      if (normalized && !seenFileIds.has(normalized.id)) {
+        seenFileIds.add(normalized.id);
+        allFiles.push(normalized);
+        addedCount++;
+      }
+    }
+
+    if (rawBatch.length < FILE_PAGE_LIMIT || addedCount === 0) {
+      break;
+    }
+    fileOffset += FILE_PAGE_LIMIT;
+    if (fileOffset >= 5000) break;
+  }
+
+  const syncedAt = new Date().toISOString();
+  folderDatasetCache.set(cacheKey, {
+    timestamp: Date.now(),
+    folders: allFolders,
+    files: allFiles,
+    syncedAt,
+  });
+
+  return {
+    success: true,
+    folders: allFolders,
+    files: allFiles,
+    syncedAt,
+    fromCache: false,
+  };
+}
+
+/**
+ * Lists files and folders from GoHighLevel Media Storage API v3 with complete multi-page accuracy.
  */
 export async function listGhlMedia(params: GHLMediaListParams = {}): Promise<GHLMediaListResponse> {
   const token = getServerSideGhlToken();
@@ -405,246 +494,119 @@ export async function listGhlMedia(params: GHLMediaListParams = {}): Promise<GHL
   const offset = Math.max(0, Number(params.offset) || 0);
   const limit = Math.min(100, Math.max(1, Number(params.limit) || 40));
 
-  const cacheKey = JSON.stringify({
-    locationId,
-    parentId,
-    query,
-    filterTab,
-    sortBy,
-    sortOrder,
-    offset,
-    limit,
-  });
+  try {
+    const datasetResult = await fetchCompleteFolderDataset({
+      token,
+      locationId,
+      parentId,
+      query,
+      refresh: Boolean(params.refresh),
+    });
 
-  if (!params.refresh) {
-    const cached = mediaMetadataCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    if (!datasetResult.success) {
+      recordGhlSyncOutcome({
+        status: 'error',
+        statusMessage: datasetResult.error || 'Failed to fetch media from GoHighLevel',
+        error: datasetResult.error || 'Failed to fetch media from GoHighLevel',
+        errorCode: datasetResult.errorCode || 'API_ERROR',
+      });
       return {
-        ...cached.response,
-        fromCache: true,
+        success: false,
+        items: [],
+        folders: [],
+        files: [],
+        totalCount: 0,
+        offset,
+        limit,
+        hasMore: false,
+        locationId,
+        parentId,
+        fromCache: false,
+        syncedAt: datasetResult.syncedAt,
+        errorCode: datasetResult.errorCode,
+        error: datasetResult.error,
       };
     }
-  } else {
-    clearGhlMediaCache();
-  }
 
-  try {
-    let folders: GHLMediaItem[] = [];
-    let files: GHLMediaItem[] = [];
-    let apiTotalCount = 0;
+    const allFolders = datasetResult.folders;
+    const allFiles = datasetResult.files;
 
+    // Mutually exclusive category counts across the entire folder dataset:
+    // Images + Videos + PDFs + Uncategorized === Total files
+    const categoryCounts = {
+      all: allFiles.length,
+      image: allFiles.filter(f => f.mediaCategory === 'image').length,
+      video: allFiles.filter(f => f.mediaCategory === 'video').length,
+      pdf: allFiles.filter(f => f.mediaCategory === 'pdf').length,
+      uncategorized: allFiles.filter(f => f.mediaCategory === 'uncategorized').length,
+      folder: allFolders.length,
+    };
+
+    // Filter items based on active tab
+    let matchingItems: GHLMediaItem[] = [];
     if (filterTab === 'folder') {
-      const folderRes = await fetchGhlMediaEndpoint({
-        token,
-        locationId,
-        type: 'folder',
-        sortBy,
-        sortOrder,
-        parentId,
-        query,
-        offset,
-        limit,
-      });
-
-      if (folderRes.statusCode < 200 || folderRes.statusCode >= 300) {
-        const errInfo = classifyGhlApiError(folderRes.statusCode, folderRes.body);
-        recordGhlSyncOutcome({
-          status: 'error',
-          statusMessage: errInfo.message,
-          error: errInfo.message,
-          errorCode: errInfo.errorCode,
-        });
-        return {
-          success: false,
-          items: [],
-          folders: [],
-          files: [],
-          totalCount: 0,
-          offset,
-          limit,
-          hasMore: false,
-          locationId,
-          parentId,
-          fromCache: false,
-          syncedAt: new Date().toISOString(),
-          errorCode: errInfo.errorCode,
-          error: errInfo.message,
-        };
-      }
-
-      const rawFolders = extractRawArrayFromResponse(folderRes.body);
-      folders = rawFolders
-        .map(r => normalizeGhlRecord({ ...r, type: 'folder' }, locationId))
-        .filter((item): item is GHLMediaItem => Boolean(item));
-      apiTotalCount = Number(folderRes.body?.totalCount ?? folders.length);
-    } else if (filterTab === 'image' || filterTab === 'video' || filterTab === 'pdf') {
-      const fileRes = await fetchGhlMediaEndpoint({
-        token,
-        locationId,
-        type: 'file',
-        sortBy,
-        sortOrder,
-        parentId,
-        query,
-        offset,
-        limit,
-      });
-
-      if (fileRes.statusCode < 200 || fileRes.statusCode >= 300) {
-        const errInfo = classifyGhlApiError(fileRes.statusCode, fileRes.body);
-        recordGhlSyncOutcome({
-          status: 'error',
-          statusMessage: errInfo.message,
-          error: errInfo.message,
-          errorCode: errInfo.errorCode,
-        });
-        return {
-          success: false,
-          items: [],
-          folders: [],
-          files: [],
-          totalCount: 0,
-          offset,
-          limit,
-          hasMore: false,
-          locationId,
-          parentId,
-          fromCache: false,
-          syncedAt: new Date().toISOString(),
-          errorCode: errInfo.errorCode,
-          error: errInfo.message,
-        };
-      }
-
-      const rawFiles = extractRawArrayFromResponse(fileRes.body);
-      const allNormalized = rawFiles
-        .map(r => normalizeGhlRecord(r, locationId))
-        .filter((item): item is GHLMediaItem => Boolean(item));
-
-      files = allNormalized.filter(item => item.mediaCategory === filterTab);
-      apiTotalCount = Number(fileRes.body?.totalCount ?? files.length);
+      matchingItems = allFolders;
+    } else if (filterTab === 'image') {
+      matchingItems = allFiles.filter(f => f.mediaCategory === 'image');
+    } else if (filterTab === 'video') {
+      matchingItems = allFiles.filter(f => f.mediaCategory === 'video');
+    } else if (filterTab === 'pdf') {
+      matchingItems = allFiles.filter(f => f.mediaCategory === 'pdf');
+    } else if (filterTab === 'uncategorized') {
+      matchingItems = allFiles.filter(f => f.mediaCategory === 'uncategorized');
     } else {
-      // filterTab === 'all': Fetch folders (when on first page) and files in parallel
-      const [folderRes, fileRes] = await Promise.all([
-        offset === 0
-          ? fetchGhlMediaEndpoint({
-              token,
-              locationId,
-              type: 'folder',
-              sortBy,
-              sortOrder,
-              parentId,
-              query,
-              offset: 0,
-              limit: 100,
-            })
-          : Promise.resolve({ statusCode: 200, body: { files: [] }, rawText: '' }),
-        fetchGhlMediaEndpoint({
-          token,
-          locationId,
-          type: 'file',
-          sortBy,
-          sortOrder,
-          parentId,
-          query,
-          offset,
-          limit,
-        }),
-      ]);
-
-      // Check if either returned an error status
-      const failedRes =
-        fileRes.statusCode < 200 || fileRes.statusCode >= 300
-          ? fileRes
-          : folderRes.statusCode < 200 || folderRes.statusCode >= 300
-          ? folderRes
-          : null;
-
-      if (failedRes) {
-        const errInfo = classifyGhlApiError(failedRes.statusCode, failedRes.body);
-        recordGhlSyncOutcome({
-          status: 'error',
-          statusMessage: errInfo.message,
-          error: errInfo.message,
-          errorCode: errInfo.errorCode,
-        });
-        return {
-          success: false,
-          items: [],
-          folders: [],
-          files: [],
-          totalCount: 0,
-          offset,
-          limit,
-          hasMore: false,
-          locationId,
-          parentId,
-          fromCache: false,
-          syncedAt: new Date().toISOString(),
-          errorCode: errInfo.errorCode,
-          error: errInfo.message,
-        };
-      }
-
-      const rawFolders = extractRawArrayFromResponse(folderRes.body);
-      const rawFiles = extractRawArrayFromResponse(fileRes.body);
-
-      folders = rawFolders
-        .map(r => normalizeGhlRecord({ ...r, type: 'folder' }, locationId))
-        .filter((item): item is GHLMediaItem => Boolean(item) && item.type === 'folder');
-
-      files = rawFiles
-        .map(r => normalizeGhlRecord(r, locationId))
-        .filter((item): item is GHLMediaItem => Boolean(item) && item.type === 'file');
-
-      apiTotalCount = Number(fileRes.body?.totalCount ?? files.length) + folders.length;
+      // 'all' includes folders first, then all files (images, videos, pdfs, uncategorized)
+      matchingItems = [...allFolders, ...allFiles];
     }
 
-    // Deduplicate by id
-    const seenIds = new Set<string>();
-    const dedupedFolders = folders.filter(f => {
-      if (seenIds.has(f.id)) return false;
-      seenIds.add(f.id);
-      return true;
-    });
-    const dedupedFiles = files.filter(f => {
-      if (seenIds.has(f.id)) return false;
-      seenIds.add(f.id);
-      return true;
+    // Sort matching items
+    const sortedItems = [...matchingItems].sort((a, b) => {
+      if (filterTab === 'all') {
+        if (a.type === 'folder' && b.type !== 'folder') return -1;
+        if (a.type !== 'folder' && b.type === 'folder') return 1;
+      }
+      if (sortBy === 'name') {
+        const comp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+        return sortOrder === 'asc' ? comp : -comp;
+      }
+      if (sortBy === 'createdAt') {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+      // Default: updatedAt
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
     });
 
-    const items = [...dedupedFolders, ...dedupedFiles];
-    const nowIso = new Date().toISOString();
+    const pagedItems = sortedItems.slice(offset, offset + limit);
+    const pagedFolders = pagedItems.filter(i => i.type === 'folder');
+    const pagedFiles = pagedItems.filter(i => i.type === 'file');
 
     recordGhlSyncOutcome({
       status: 'connected',
       statusMessage: `Connected to Location ${locationId}`,
-      syncedAt: nowIso,
+      syncedAt: datasetResult.syncedAt,
       error: null,
       errorCode: null,
     });
 
-    const response: GHLMediaListResponse = {
+    return {
       success: true,
-      items,
-      folders: dedupedFolders,
-      files: dedupedFiles,
-      totalCount: Math.max(apiTotalCount, items.length),
+      items: pagedItems,
+      folders: pagedFolders,
+      files: pagedFiles,
+      totalCount: sortedItems.length,
       offset,
       limit,
-      hasMore: dedupedFiles.length >= limit,
+      hasMore: offset + limit < sortedItems.length,
       locationId,
       parentId,
-      fromCache: false,
-      syncedAt: nowIso,
+      fromCache: datasetResult.fromCache,
+      syncedAt: datasetResult.syncedAt,
+      categoryCounts,
     };
-
-    mediaMetadataCache.set(cacheKey, {
-      timestamp: Date.now(),
-      response,
-    });
-
-    return response;
   } catch (err: any) {
     const safeErr = redactSecrets(err?.message || String(err));
     const message = `Network error connecting to GoHighLevel Media Storage API: ${safeErr}`;

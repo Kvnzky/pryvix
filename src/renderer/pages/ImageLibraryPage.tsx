@@ -79,6 +79,14 @@ export const ImageLibraryPage: React.FC = () => {
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [isFromCache, setIsFromCache] = useState(false);
+  const [categoryCounts, setCategoryCounts] = useState<{
+    all: number;
+    image: number;
+    video: number;
+    pdf: number;
+    uncategorized: number;
+    folder: number;
+  } | null>(null);
 
   // UI interactions
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -167,6 +175,9 @@ export const ImageLibraryPage: React.FC = () => {
       setHasMore(response.hasMore);
       setLastSyncedAt(response.syncedAt);
       setIsFromCache(response.fromCache);
+      if (response.categoryCounts) {
+        setCategoryCounts(response.categoryCounts);
+      }
       setConnectionStatus(prev => ({
         connected: true,
         hasToken: true,
@@ -261,6 +272,7 @@ export const ImageLibraryPage: React.FC = () => {
     if (activeTab === 'image') return files.filter(f => f.mediaCategory === 'image');
     if (activeTab === 'video') return files.filter(f => f.mediaCategory === 'video');
     if (activeTab === 'pdf') return files.filter(f => f.mediaCategory === 'pdf');
+    if (activeTab === 'uncategorized') return files.filter(f => f.mediaCategory === 'uncategorized');
     return [...folders, ...files];
   }, [items, sortOption, activeTab]);
 
@@ -301,6 +313,7 @@ export const ImageLibraryPage: React.FC = () => {
     { id: 'image', label: 'Images', icon: ImageIcon },
     { id: 'video', label: 'Videos', icon: Video },
     { id: 'pdf', label: 'PDFs', icon: FileText },
+    { id: 'uncategorized', label: 'Uncategorized', icon: FileQuestion },
     { id: 'folder', label: 'Folders', icon: Folder },
   ];
 
@@ -411,6 +424,7 @@ export const ImageLibraryPage: React.FC = () => {
           {navTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const count = categoryCounts ? categoryCounts[tab.id] : undefined;
             return (
               <button
                 key={tab.id}
@@ -425,7 +439,18 @@ export const ImageLibraryPage: React.FC = () => {
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
-                {tab.label}
+                <span>{tab.label}</span>
+                {typeof count === 'number' && (
+                  <span
+                    className={`ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+                      isActive
+                        ? 'bg-white/20 text-white font-bold'
+                        : 'bg-[#1a233b] text-gray-400'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -624,9 +649,10 @@ export const ImageLibraryPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {displayedItems.map(item => {
             const isFolder = item.type === 'folder';
+            const isPdf = item.mediaCategory === 'pdf';
             const isVideo = item.mediaCategory === 'video';
             const isImage = item.mediaCategory === 'image';
-            const isPdf = item.mediaCategory === 'pdf';
+            const isUncategorized = item.mediaCategory === 'uncategorized' || (!isFolder && !isPdf && !isVideo && !isImage);
             const isBrokenThumb = Boolean(brokenThumbIds[item.id]);
 
             if (isFolder) {
@@ -731,6 +757,18 @@ export const ImageLibraryPage: React.FC = () => {
                       }
                       className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
                     />
+                  ) : isUncategorized ? (
+                    <div className="w-full h-full relative flex flex-col items-center justify-center bg-[#0d1322] rounded-xl border border-gray-700/40 group-hover:border-gray-500/50 transition-colors p-3">
+                      <div className="w-12 h-14 rounded-lg bg-gradient-to-b from-gray-800 to-gray-900 border border-gray-600/50 flex flex-col items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                        <FileQuestion className="w-6 h-6 text-gray-300" />
+                        <span className="text-[8px] font-mono font-bold text-gray-300 mt-0.5 tracking-wider uppercase truncate max-w-[40px]">
+                          {item.fileExtension || 'FILE'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-mono mt-2 truncate max-w-[90%] text-center">
+                        {item.fileExtension ? `${item.fileExtension.toUpperCase()} File` : 'Uncategorized'}
+                      </span>
+                    </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center text-gray-500 text-center p-2">
                       <ImageIcon className="w-10 h-10 mb-1 text-gray-600" />
@@ -749,6 +787,11 @@ export const ImageLibraryPage: React.FC = () => {
                       <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-rose-950/90 text-rose-300 border border-rose-700/40 px-2 py-0.5 rounded-full shadow">
                         <FileText className="w-2.5 h-2.5" />
                         PDF {item.fileExtension ? `• ${item.fileExtension.toUpperCase()}` : ''}
+                      </span>
+                    ) : isUncategorized ? (
+                      <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-gray-800 text-gray-200 border border-gray-600/70 px-2 py-0.5 rounded-full shadow">
+                        <FileQuestion className="w-2.5 h-2.5 text-gray-300" />
+                        {item.fileExtension ? item.fileExtension.toUpperCase() : 'UNCATEGORIZED'}
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-blue-950/90 text-blue-300 border border-blue-700/40 px-2 py-0.5 rounded-full">
@@ -1024,6 +1067,38 @@ export const ImageLibraryPage: React.FC = () => {
                   }
                   className="max-h-[440px] max-w-full rounded-lg shadow-xl"
                 />
+              ) : previewItem.mediaCategory === 'uncategorized' ? (
+                <div className="w-full flex flex-col items-center justify-center p-8 space-y-4">
+                  <div className="w-20 h-24 rounded-2xl bg-gradient-to-b from-gray-800 to-gray-900 border border-gray-600/60 flex flex-col items-center justify-center shadow-2xl">
+                    <FileQuestion className="w-10 h-10 text-gray-300" />
+                    <span className="text-[10px] font-mono font-bold text-gray-200 mt-1 tracking-wider uppercase">
+                      {previewItem.fileExtension || 'FILE'}
+                    </span>
+                  </div>
+                  <div className="text-center space-y-1 max-w-md">
+                    <div className="text-sm font-bold text-white break-all">{previewItem.name}</div>
+                    <p className="text-[11px] text-gray-400">
+                      This file format ({previewItem.fileExtension ? `.${previewItem.fileExtension}` : 'no extension'}) is classified as Uncategorized.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <a
+                      href={previewItem.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open / Download File
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(previewItem.url, previewItem.id)}
+                      className="px-4 py-2 rounded-xl bg-[#121829] hover:bg-[#18223a] text-gray-200 text-xs font-semibold flex items-center gap-1.5 border border-[#1e2942] transition-colors"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-blue-400" /> Copy URL
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <img
                   src={previewItem.url}
@@ -1063,6 +1138,8 @@ export const ImageLibraryPage: React.FC = () => {
                 <div className="text-white font-mono mt-0.5">
                   {previewItem.mediaCategory === 'pdf'
                     ? 'PDF Document (Multipage)'
+                    : previewItem.mediaCategory === 'uncategorized'
+                    ? `${previewItem.fileExtension ? previewItem.fileExtension.toUpperCase() : 'Unknown'} Document`
                     : previewImageDims
                     ? `${previewImageDims.width} × ${previewImageDims.height} px`
                     : previewVideoMeta

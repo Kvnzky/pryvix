@@ -45,6 +45,13 @@ import {
   getGhlConnectionStatus,
   classifyMediaItem,
 } from '../src/server/ghlMediaService.ts';
+import {
+  classifyMediaFile,
+  extractNormalizedExtension,
+  SUPPORTED_IMAGE_EXTENSIONS,
+  SUPPORTED_VIDEO_EXTENSIONS,
+  SUPPORTED_PDF_EXTENSIONS,
+} from '../src/shared/mediaClassifier.ts';
 import { handleGhlApiRequest } from '../src/server/apiMiddleware.ts';
 import JSZip from 'jszip';
 
@@ -1081,15 +1088,15 @@ console.log('   ✓ GHL CDN domain allowlist and authenticated /api/ghl/* middle
 // 34. GoHighLevel Media Storage PDF Detection, Categorization & Isolation
 console.log('\n[TEST 34] Testing GoHighLevel Media Storage PDF Detection & Isolation Rules:');
 
-// Test 1: Reliable MIME application/pdf detection
-const mimePdf = classifyMediaItem({
+// Test 1: Reliable filename extension .pdf detection
+const standardPdf = classifyMediaItem({
   name: 'Terms_and_Conditions.pdf',
   url: 'https://assets.cdn.filesafe.space/tSCoUOTHrXglK2BwDeYc/media/terms.pdf',
   contentType: 'application/pdf',
   type: 'file',
 });
-if (mimePdf.mediaCategory !== 'pdf' || mimePdf.mimeType !== 'application/pdf' || mimePdf.fileExtension !== 'pdf') {
-  console.error('FAIL: classifyMediaItem failed to detect PDF with application/pdf MIME type!', mimePdf);
+if (standardPdf.mediaCategory !== 'pdf' || standardPdf.fileExtension !== 'pdf') {
+  console.error('FAIL: classifyMediaItem failed to detect PDF from filename!', standardPdf);
   process.exit(1);
 }
 
@@ -1105,31 +1112,19 @@ if (upperExtPdf.mediaCategory !== 'pdf' || upperExtPdf.fileExtension !== 'pdf') 
   process.exit(1);
 }
 
-// Test 3: Rejection of PDF filename if reliable MIME indicates an image (prevent spoofing)
-const fakePdfImage = classifyMediaItem({
-  name: 'not_actually_a_pdf.pdf',
-  url: 'https://files.leadconnectorhq.com/file/image.png',
-  contentType: 'image/png',
+// Test 3: Mixed case .Pdf extension with query strings and hash anchors
+const queryExtPdf = classifyMediaItem({
+  name: 'quarterly_brochure.Pdf',
+  url: 'https://files.leadconnectorhq.com/file/quarterly_brochure.Pdf?token=xyz123#page=2',
+  contentType: 'application/octet-stream',
   type: 'file',
 });
-if (fakePdfImage.mediaCategory === 'pdf') {
-  console.error('FAIL: classifyMediaItem classified image as PDF based solely on filename when reliable image/png MIME was present!', fakePdfImage);
+if (queryExtPdf.mediaCategory !== 'pdf' || queryExtPdf.fileExtension !== 'pdf') {
+  console.error('FAIL: classifyMediaItem failed to detect PDF with query parameters!', queryExtPdf);
   process.exit(1);
 }
 
-// Test 4: Rejection of PDF filename if reliable MIME indicates a video
-const fakePdfVideo = classifyMediaItem({
-  name: 'teaser_trailer.pdf',
-  url: 'https://files.leadconnectorhq.com/file/video.mp4',
-  contentType: 'video/mp4',
-  type: 'file',
-});
-if (fakePdfVideo.mediaCategory === 'pdf') {
-  console.error('FAIL: classifyMediaItem classified video as PDF based solely on filename when reliable video/mp4 MIME was present!', fakePdfVideo);
-  process.exit(1);
-}
-
-// Test 5: Verify PDF exclusion from landing page image and video replacements
+// Test 4: Verify PDF exclusion from landing page image and video replacements
 const mockPdfItem = {
   id: 'pdf_test_01',
   name: 'Document.pdf',
@@ -1144,11 +1139,98 @@ if (imageFilterMatch || videoFilterMatch) {
   process.exit(1);
 }
 
-console.log('   ✓ Reliable application/pdf MIME detection verified.');
+console.log('   ✓ Filename-based .pdf extension detection verified.');
 console.log('   ✓ Case-insensitive .PDF extension parsing verified.');
-console.log('   ✓ Filename-only spoofing rejected when image/video MIME is present.');
+console.log('   ✓ Stripping of query strings and hash anchors verified.');
 console.log('   ✓ PDF asset isolation from landing page replacement workflows confirmed.');
 
+// 35. Extension-Based Media Filtering, Mutual Exclusivity & Pagination Integrity
+console.log('\n[TEST 35] Testing Extension-Based Media Filtering & Mutual Exclusivity:');
+
+// Test all supported image extensions
+const expectedImageExts = [
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tif', 'tiff', 'avif', 'heic', 'heif', 'ico'
+];
+for (const ext of expectedImageExts) {
+  const cat = classifyMediaFile(`sample_asset.${ext}`);
+  if (cat !== 'image') {
+    console.error(`FAIL: Extension .${ext} was not classified as 'image' (got '${cat}')`);
+    process.exit(1);
+  }
+}
+console.log(`   ✓ All ${expectedImageExts.length} supported image extensions verified as 'image'.`);
+
+// Test all supported video extensions
+const expectedVideoExts = [
+  'mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv', 'wmv', 'flv', 'mpg', 'mpeg', '3gp', 'mts', 'm2ts', 'ts', 'ogv'
+];
+for (const ext of expectedVideoExts) {
+  const cat = classifyMediaFile(`campaign_video.${ext}`);
+  if (cat !== 'video') {
+    console.error(`FAIL: Extension .${ext} was not classified as 'video' (got '${cat}')`);
+    process.exit(1);
+  }
+}
+console.log(`   ✓ All ${expectedVideoExts.length} supported video extensions verified as 'video'.`);
+
+// Test PDF extension
+if (classifyMediaFile('document.pdf') !== 'pdf' || classifyMediaFile('brochure.PDF') !== 'pdf') {
+  console.error('FAIL: .pdf / .PDF was not classified as pdf');
+  process.exit(1);
+}
+console.log("   ✓ PDF extensions (.pdf, .PDF) verified as 'pdf'.");
+
+// Test Uncategorized extensions
+const uncategorizedSamples = [
+  'presentation.pptx',
+  'spreadsheet.xlsx',
+  'document.docx',
+  'audio_track.mp3',
+  'bundle.zip',
+  'unknown_file.xyz',
+  'filename_without_extension',
+];
+for (const sample of uncategorizedSamples) {
+  const cat = classifyMediaFile(sample);
+  if (cat !== 'uncategorized') {
+    console.error(`FAIL: File '${sample}' was not classified as 'uncategorized' (got '${cat}')`);
+    process.exit(1);
+  }
+}
+console.log("   ✓ Non-media and extensionless files correctly classified as 'uncategorized'.");
+
+// Test Mutual Exclusivity Equation:
+// Every file in a dataset must belong to EXACTLY ONE category: Images + Videos + PDFs + Uncategorized = Total Files
+const testDataset = [
+  'banner.jpg',
+  'banner.JPEG',
+  'logo.png',
+  'campaign.webp',
+  'animation.gif',
+  'promo.mp4',
+  'background.MOV',
+  'trailer.webm',
+  'document.pdf',
+  'brochure.PDF',
+  'presentation.pptx',
+  'audio.mp3',
+  'file.xyz',
+  'filename_without_extension',
+];
+
+const counts = { image: 0, video: 0, pdf: 0, uncategorized: 0 };
+for (const filename of testDataset) {
+  const cat = classifyMediaFile(filename);
+  counts[cat]++;
+}
+
+const totalSum = counts.image + counts.video + counts.pdf + counts.uncategorized;
+if (totalSum !== testDataset.length) {
+  console.error(`FAIL: Mutual exclusivity equation failed! Sum=${totalSum}, Total=${testDataset.length}`);
+  process.exit(1);
+}
+console.log(`   ✓ Mutual Exclusivity Equation verified: ${counts.image} Images + ${counts.video} Videos + ${counts.pdf} PDFs + ${counts.uncategorized} Uncategorized = ${totalSum} Total Files.`);
+
 console.log('\n====================================================');
-console.log('   ALL 34 TEST SUITES PASSED WITH 100% FIDELITY!   ');
+console.log('   ALL 35 TEST SUITES PASSED WITH 100% FIDELITY!   ');
 console.log('====================================================\n');

@@ -302,10 +302,10 @@ export interface SourceComparisonReport {
 // ============================================================================
 
 export type GHLMediaEntityType = 'file' | 'folder';
-export type GHLMediaCategory = 'image' | 'video' | 'pdf' | 'folder' | 'other';
+export type GHLMediaCategory = 'image' | 'video' | 'pdf' | 'uncategorized' | 'folder' | 'other';
 export type GHLSortBy = 'updatedAt' | 'createdAt' | 'name';
 export type GHLSortOrder = 'asc' | 'desc';
-export type GHLFilterTab = 'all' | 'image' | 'video' | 'pdf' | 'folder';
+export type GHLFilterTab = 'all' | 'image' | 'video' | 'pdf' | 'uncategorized' | 'folder';
 
 export interface GHLMediaItem {
   id: string;
@@ -354,6 +354,14 @@ export interface GHLMediaListResponse {
   parentId: string | null;
   fromCache: boolean;
   syncedAt: string;
+  categoryCounts?: {
+    all: number;
+    image: number;
+    video: number;
+    pdf: number;
+    uncategorized: number;
+    folder: number;
+  };
   error?: string;
   errorCode?:
     | 'NOT_CONFIGURED'
