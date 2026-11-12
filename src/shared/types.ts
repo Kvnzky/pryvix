@@ -302,10 +302,10 @@ export interface SourceComparisonReport {
 // ============================================================================
 
 export type GHLMediaEntityType = 'file' | 'folder';
-export type GHLMediaCategory = 'image' | 'video' | 'folder' | 'other';
+export type GHLMediaCategory = 'image' | 'video' | 'pdf' | 'folder' | 'other';
 export type GHLSortBy = 'updatedAt' | 'createdAt' | 'name';
 export type GHLSortOrder = 'asc' | 'desc';
-export type GHLFilterTab = 'all' | 'image' | 'video' | 'folder';
+export type GHLFilterTab = 'all' | 'image' | 'video' | 'pdf' | 'folder';
 
 export interface GHLMediaItem {
   id: string;

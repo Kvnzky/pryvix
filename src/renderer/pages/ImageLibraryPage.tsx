@@ -23,6 +23,10 @@ import {
   FileQuestion,
   Play,
   Home,
+  FileText,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from 'lucide-react';
 import {
   GHLConnectionStatus,
@@ -92,6 +96,8 @@ export const ImageLibraryPage: React.FC = () => {
     duration: number;
     aspectRatio: string;
   } | null>(null);
+  const [pdfZoom, setPdfZoom] = useState<number>(100);
+  const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
 
   const currentFolder = breadcrumbs[breadcrumbs.length - 1];
 
@@ -219,12 +225,16 @@ export const ImageLibraryPage: React.FC = () => {
       setPreviewImageDims(null);
       setPreviewVideoMeta(null);
       setPreviewLoadError(null);
+      setPdfLoadError(null);
+      setPdfZoom(100);
       return;
     }
 
     setPreviewImageDims(null);
     setPreviewVideoMeta(null);
     setPreviewLoadError(null);
+    setPdfLoadError(null);
+    setPdfZoom(100);
     setIsVerifyingPreview(true);
 
     verifyGhlAssetAccessibility(previewItem.url)
@@ -250,6 +260,7 @@ export const ImageLibraryPage: React.FC = () => {
     if (activeTab === 'folder') return folders;
     if (activeTab === 'image') return files.filter(f => f.mediaCategory === 'image');
     if (activeTab === 'video') return files.filter(f => f.mediaCategory === 'video');
+    if (activeTab === 'pdf') return files.filter(f => f.mediaCategory === 'pdf');
     return [...folders, ...files];
   }, [items, sortOption, activeTab]);
 
@@ -289,6 +300,7 @@ export const ImageLibraryPage: React.FC = () => {
     { id: 'all', label: 'All Media', icon: FolderOpen },
     { id: 'image', label: 'Images', icon: ImageIcon },
     { id: 'video', label: 'Videos', icon: Video },
+    { id: 'pdf', label: 'PDFs', icon: FileText },
     { id: 'folder', label: 'Folders', icon: Folder },
   ];
 
@@ -558,14 +570,22 @@ export const ImageLibraryPage: React.FC = () => {
             {debouncedQuery
               ? `No GHL media matching "${debouncedQuery}"`
               : currentFolder.id
-              ? `Folder "${currentFolder.name}" is empty`
+              ? activeTab === 'pdf'
+                ? `Folder "${currentFolder.name}" has no PDF documents`
+                : `Folder "${currentFolder.name}" is empty`
+              : activeTab === 'pdf'
+              ? 'No PDF documents found in this view'
               : 'No media items found in this view'}
           </h3>
           <p className="text-xs text-gray-400 max-w-md mx-auto">
             {debouncedQuery
               ? 'Try clearing your search filter or navigating back to All Media.'
               : currentFolder.id
-              ? 'There are no files or subfolders inside this GoHighLevel folder.'
+              ? activeTab === 'pdf'
+                ? 'There are no PDF files inside this GoHighLevel folder.'
+                : 'There are no files or subfolders inside this GoHighLevel folder.'
+              : activeTab === 'pdf'
+              ? 'Your GoHighLevel Media Storage returned 0 PDF files for this location.'
               : 'Your GoHighLevel Media Storage returned 0 items for the selected filter.'}
           </p>
           {(debouncedQuery || currentFolder.id || activeTab !== 'all') && (
@@ -606,6 +626,7 @@ export const ImageLibraryPage: React.FC = () => {
             const isFolder = item.type === 'folder';
             const isVideo = item.mediaCategory === 'video';
             const isImage = item.mediaCategory === 'image';
+            const isPdf = item.mediaCategory === 'pdf';
             const isBrokenThumb = Boolean(brokenThumbIds[item.id]);
 
             if (isFolder) {
@@ -649,7 +670,7 @@ export const ImageLibraryPage: React.FC = () => {
                 key={item.id}
                 className="bg-[#121829] border border-[#1e2942] hover:border-[#2a3c61] rounded-2xl overflow-hidden flex flex-col justify-between shadow-lg transition-all duration-200 group"
               >
-                {/* Thumbnail Area (Lazy loaded for images; static non-autoplay metadata frame for videos) */}
+                {/* Thumbnail Area (Lazy loaded for images; static non-autoplay metadata frame for videos; document preview for PDFs) */}
                 <div
                   onClick={() => setPreviewItem(item)}
                   className="relative h-44 bg-[#0a0e1a] p-3 flex items-center justify-center overflow-hidden border-b border-[#1e2942] cursor-pointer"
@@ -676,6 +697,30 @@ export const ImageLibraryPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                  ) : isPdf ? (
+                    <div className="w-full h-full relative flex flex-col items-center justify-center bg-[#0d1322] rounded-xl border border-rose-500/20 group-hover:border-rose-500/40 transition-colors p-3">
+                      {item.thumbnailUrl && item.thumbnailUrl !== item.url && !isBrokenThumb ? (
+                        <img
+                          src={item.thumbnailUrl}
+                          alt={item.name}
+                          loading="lazy"
+                          onError={() =>
+                            setBrokenThumbIds(prev => ({ ...prev, [item.id]: true }))
+                          }
+                          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center">
+                          <div className="w-12 h-14 rounded-lg bg-gradient-to-b from-rose-950/70 to-rose-900/30 border border-rose-500/40 flex flex-col items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                            <FileText className="w-6 h-6 text-rose-400" />
+                            <span className="text-[8px] font-mono font-bold text-rose-300 mt-0.5 tracking-wider">PDF</span>
+                          </div>
+                          <span className="text-[10px] text-gray-400 font-mono mt-2 truncate max-w-[90%] text-center">
+                            PDF Document
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   ) : isImage && (item.thumbnailUrl || item.url) && !isBrokenThumb ? (
                     <img
                       src={item.thumbnailUrl || item.url}
@@ -699,6 +744,11 @@ export const ImageLibraryPage: React.FC = () => {
                       <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-gradient-to-r from-[#2563eb] to-[#7c3aed] text-white px-2 py-0.5 rounded-full shadow">
                         <Video className="w-2.5 h-2.5" />
                         VIDEO {item.fileExtension ? `• ${item.fileExtension.toUpperCase()}` : ''}
+                      </span>
+                    ) : isPdf ? (
+                      <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-rose-950/90 text-rose-300 border border-rose-700/40 px-2 py-0.5 rounded-full shadow">
+                        <FileText className="w-2.5 h-2.5" />
+                        PDF {item.fileExtension ? `• ${item.fileExtension.toUpperCase()}` : ''}
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-[9px] font-mono font-bold bg-blue-950/90 text-blue-300 border border-blue-700/40 px-2 py-0.5 rounded-full">
@@ -732,7 +782,7 @@ export const ImageLibraryPage: React.FC = () => {
                       {item.name}
                     </h4>
                     <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-1 font-mono">
-                      <span>{item.size ? formatBytes(item.size) : 'Cloud Asset'}</span>
+                      <span>{item.size ? formatBytes(item.size) : isPdf ? 'PDF Document' : 'Cloud Asset'}</span>
                       {item.updatedAt && (
                         <>
                           <span>•</span>
@@ -854,7 +904,7 @@ export const ImageLibraryPage: React.FC = () => {
             </div>
 
             {/* Viewport Box */}
-            <div className="bg-[#090b10] border border-[#1e2942] rounded-xl p-4 min-h-[300px] max-h-[500px] flex flex-col items-center justify-center overflow-hidden relative">
+            <div className="bg-[#090b10] border border-[#1e2942] rounded-xl p-4 min-h-[300px] flex flex-col items-center justify-center overflow-hidden relative">
               {!previewItem.url ? (
                 <div className="text-center space-y-2 p-6">
                   <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
@@ -868,6 +918,88 @@ export const ImageLibraryPage: React.FC = () => {
                   <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto" />
                   <div className="text-xs font-bold text-rose-200">Media Preview Unavailable</div>
                   <p className="text-[11px] text-gray-400 leading-relaxed">{previewLoadError}</p>
+                </div>
+              ) : previewItem.mediaCategory === 'pdf' ? (
+                <div className="w-full flex flex-col space-y-3">
+                  {/* PDF Toolbar with Zoom, Reset & Open Tab */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-[#121829] border border-[#1e2942] text-xs">
+                    <div className="flex items-center gap-2 text-rose-300 font-mono text-[11px] min-w-0">
+                      <FileText className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span className="truncate max-w-[280px]">{previewItem.name}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPdfZoom(prev => Math.max(50, prev - 25))}
+                        disabled={pdfZoom <= 50}
+                        className="p-1.5 rounded-lg bg-[#0a0e1a] hover:bg-[#18223a] disabled:opacity-40 text-gray-300 hover:text-white border border-[#1e2942] transition-colors"
+                        title="Zoom Out"
+                      >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-[#0a0e1a] text-white border border-[#1e2942]">
+                        {pdfZoom}%
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPdfZoom(prev => Math.min(200, prev + 25))}
+                        disabled={pdfZoom >= 200}
+                        className="p-1.5 rounded-lg bg-[#0a0e1a] hover:bg-[#18223a] disabled:opacity-40 text-gray-300 hover:text-white border border-[#1e2942] transition-colors"
+                        title="Zoom In"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPdfZoom(100)}
+                        className="px-2.5 py-1 rounded-lg bg-[#0a0e1a] hover:bg-[#18223a] text-gray-300 hover:text-white text-[11px] font-mono border border-[#1e2942] flex items-center gap-1 transition-colors"
+                        title="Reset Zoom"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Reset
+                      </button>
+                      <a
+                        href={previewItem.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1 rounded-lg bg-[#18223a] hover:bg-blue-600 text-white text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+                        title="Open PDF in New Browser Tab"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Open Tab
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Multipage Scrollable PDF Viewport */}
+                  <div className="w-full h-[480px] bg-[#0c0f17] rounded-xl overflow-hidden border border-[#1e2942] relative flex items-center justify-center">
+                    {pdfLoadError ? (
+                      <div className="text-center p-6 max-w-md space-y-3">
+                        <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+                        <div className="text-xs font-bold text-white">In-App PDF View Restricted</div>
+                        <p className="text-[11px] text-gray-400 leading-relaxed">{pdfLoadError}</p>
+                        <a
+                          href={previewItem.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white text-xs font-semibold"
+                        >
+                          Open Document in New Tab <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    ) : (
+                      <iframe
+                        key={`${previewItem.url}_${pdfZoom}`}
+                        src={`${previewItem.url}#toolbar=1&navpanes=1&scrollbar=1&zoom=${pdfZoom}`}
+                        title={previewItem.name}
+                        className="w-full h-full border-0"
+                        onError={() =>
+                          setPdfLoadError(
+                            'Browser restriction prevented embedding this PDF directly. You can view the document directly by opening it in a new tab.'
+                          )
+                        }
+                      />
+                    )}
+                  </div>
                 </div>
               ) : previewItem.mediaCategory === 'video' ? (
                 <video
@@ -927,9 +1059,11 @@ export const ImageLibraryPage: React.FC = () => {
               </div>
 
               <div className="p-3 rounded-xl bg-[#121829] border border-[#1e2942]">
-                <div className="text-[10px] text-gray-400 uppercase font-bold">Dimensions / Info</div>
+                <div className="text-[10px] text-gray-400 uppercase font-bold">Document / Media Info</div>
                 <div className="text-white font-mono mt-0.5">
-                  {previewImageDims
+                  {previewItem.mediaCategory === 'pdf'
+                    ? 'PDF Document (Multipage)'
+                    : previewImageDims
                     ? `${previewImageDims.width} × ${previewImageDims.height} px`
                     : previewVideoMeta
                     ? `${previewVideoMeta.width} × ${previewVideoMeta.height} (${formatDuration(previewVideoMeta.duration)})`
@@ -979,11 +1113,11 @@ export const ImageLibraryPage: React.FC = () => {
                     >
                       {copiedId === previewItem.id ? (
                         <>
-                          <Check className="w-3.5 h-3.5" /> Copied Asset URL!
+                          <Check className="w-3.5 h-3.5" /> Copied {previewItem.mediaCategory === 'pdf' ? 'PDF' : 'Asset'} URL!
                         </>
                       ) : (
                         <>
-                          <Copy className="w-3.5 h-3.5" /> Copy Asset URL
+                          <Copy className="w-3.5 h-3.5" /> Copy {previewItem.mediaCategory === 'pdf' ? 'PDF' : 'Asset'} URL
                         </>
                       )}
                     </button>
@@ -993,7 +1127,7 @@ export const ImageLibraryPage: React.FC = () => {
                       rel="noreferrer"
                       className="px-3.5 py-2 rounded-xl bg-[#121829] hover:bg-[#18223a] border border-[#1e2942] text-gray-200 text-xs font-semibold flex items-center gap-1.5"
                     >
-                      Open Raw URL <ExternalLink className="w-3.5 h-3.5" />
+                      {previewItem.mediaCategory === 'pdf' ? 'Open PDF in Tab' : 'Open Raw URL'} <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </>
                 )}

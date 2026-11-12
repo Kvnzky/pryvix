@@ -191,6 +191,21 @@ function classifyMediaItem(raw: any): {
     };
   }
 
+  // 1. PDF Detection: Prioritize reliable MIME type (application/pdf), handle case-insensitive extension,
+  // and refuse classification as PDF if reliable MIME metadata indicates image or video.
+  const isPdfMime = rawMime === 'application/pdf' || rawMime === 'application/x-pdf' || rawMime.endsWith('/pdf');
+  const hasImageOrVideoMime = rawMime.startsWith('image/') || rawMime.startsWith('video/');
+  const isPdfExt = ext === 'pdf';
+
+  if (isPdfMime || (isPdfExt && !hasImageOrVideoMime)) {
+    return {
+      entityType: 'file',
+      mediaCategory: 'pdf',
+      mimeType: isPdfMime ? rawMime : 'application/pdf',
+      fileExtension: ext || 'pdf',
+    };
+  }
+
   if (rawMime.startsWith('video/') || rawType === 'video' || VIDEO_EXTENSIONS.has(ext)) {
     const inferredMime = rawMime.startsWith('video/')
       ? rawMime
@@ -486,7 +501,7 @@ async function listGhlMediaDirect(params: GHLMediaListParams = {}): Promise<GHLM
         .map(r => normalizeGhlRecord({ ...r, type: 'folder' }, locationId))
         .filter((item): item is GHLMediaItem => Boolean(item));
       apiTotalCount = Number(folderRes.body?.totalCount ?? folders.length);
-    } else if (filterTab === 'image' || filterTab === 'video') {
+    } else if (filterTab === 'image' || filterTab === 'video' || filterTab === 'pdf') {
       const fileRes = await fetchDirectGhlEndpoint({
         token,
         locationId,
