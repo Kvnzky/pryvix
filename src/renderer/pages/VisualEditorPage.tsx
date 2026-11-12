@@ -21,11 +21,22 @@ import {
   SlidersHorizontal,
   Image as ImageIcon,
   Video,
+  LayoutGrid,
 } from 'lucide-react';
-import { Project, ImageAsset, ComponentSection, BackgroundConfig } from '@shared/types';
+import {
+  Project,
+  ImageAsset,
+  ComponentSection,
+  BackgroundConfig,
+  ReadMoreSectionConfig,
+  SupportedSectionType,
+} from '@shared/types';
 import { extractBackgroundConfig } from '@shared/parser';
+import { extractReadMoreConfigFromHtml } from '@shared/sectionManager';
 import { AssetCard } from '../components/AssetCard';
 import { VideoQualityInspectorModal } from '../components/VideoQualityInspectorModal';
+import { SectionManagerPanel } from '../components/SectionManagerPanel';
+import { ReadMoreButtonModal } from '../components/ReadMoreButtonModal';
 import { generatePreviewHtml } from '../lib/previewHelper';
 
 interface VisualEditorPageProps {
@@ -36,6 +47,10 @@ interface VisualEditorPageProps {
   onRestoreOriginal: (assetId: string) => void;
   onJumpToCode?: (lineNumber?: number) => void;
   onUpdateBackgroundConfig?: (config: BackgroundConfig) => void;
+  onToggleSectionVisibility?: (sectionId: string, visible: boolean) => void;
+  onUpdateReadMoreConfig?: (config: ReadMoreSectionConfig) => void;
+  onAddSection?: (sectionType: SupportedSectionType) => void;
+  onRemoveSection?: (sectionId: string) => void;
 }
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile' | 'custom';
@@ -48,11 +63,17 @@ export const VisualEditorPage: React.FC<VisualEditorPageProps> = ({
   onRestoreOriginal,
   onJumpToCode,
   onUpdateBackgroundConfig,
+  onToggleSectionVisibility,
+  onUpdateReadMoreConfig,
+  onAddSection,
+  onRemoveSection,
 }) => {
   const [viewportMode, setViewportMode] = useState<ViewportMode>('desktop');
   const [customWidth, setCustomWidth] = useState(1200);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState<string>('all');
+  const [isSectionManagerOpen, setIsSectionManagerOpen] = useState(false);
+  const [isReadMoreModalOpen, setIsReadMoreModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<'all' | 'desktop' | 'tablet' | 'mobile'>('all');
   const [layoutMode, setLayoutMode] = useState<'split' | 'preview_only' | 'cards_only'>('split');
   const [previewKey, setPreviewKey] = useState(1);
@@ -343,6 +364,23 @@ export const VisualEditorPage: React.FC<VisualEditorPageProps> = ({
             {isFullscreenPreview ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
 
+          {/* Section Manager Toggle */}
+          <button
+            onClick={() => setIsSectionManagerOpen(prev => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+              isSectionManagerOpen
+                ? 'bg-violet-600/30 text-violet-300 border-violet-500/50 shadow-sm'
+                : 'bg-[#121829] hover:bg-[#18223a] text-gray-300 hover:text-white border-[#1e2942]'
+            }`}
+            title="Manage landing page sections visibility, add sections, and configure Read More Button"
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-violet-400" />
+            <span>Sections</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1e2942] text-violet-300">
+              {sections.filter(s => s.visible !== false).length}/{sections.length}
+            </span>
+          </button>
+
           <div className="flex items-center bg-[#121829] border border-[#1e2942] rounded-lg p-0.5">
             <button
               onClick={() => setLayoutMode('split')}
@@ -374,6 +412,27 @@ export const VisualEditorPage: React.FC<VisualEditorPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Section Manager Drawer */}
+      {isSectionManagerOpen && (
+        <div className="p-4 bg-[#0a0e1a] border-b border-[#1e2942] max-h-96 overflow-y-auto">
+          <SectionManagerPanel
+            sections={sections}
+            onToggleVisibility={(sectionId, visible) => {
+              onToggleSectionVisibility?.(sectionId, visible);
+            }}
+            onConfigureReadMore={() => {
+              setIsReadMoreModalOpen(true);
+            }}
+            onAddSection={(sectionType) => {
+              onAddSection?.(sectionType);
+            }}
+            onRemoveSection={(sectionId) => {
+              onRemoveSection?.(sectionId);
+            }}
+          />
+        </div>
+      )}
 
       {/* Main Workspace Area */}
       <div className="flex-1 flex overflow-hidden">
@@ -607,6 +666,21 @@ export const VisualEditorPage: React.FC<VisualEditorPageProps> = ({
         desktopVideoUrl={bgConfig.video?.desktopVideo || ''}
         mobileVideoUrl={bgConfig.video?.mobileVideo || ''}
       />
+
+      {/* Responsive Read More Button Modal */}
+      {isReadMoreModalOpen && (
+        <ReadMoreButtonModal
+          initialConfig={
+            project.readMoreConfiguration ||
+            extractReadMoreConfigFromHtml(project.currentHtml)
+          }
+          onSave={(newConfig) => {
+            onUpdateReadMoreConfig?.(newConfig);
+            setIsReadMoreModalOpen(false);
+          }}
+          onClose={() => setIsReadMoreModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

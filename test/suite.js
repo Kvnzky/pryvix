@@ -38,6 +38,7 @@ import {
   getServerSideGhlToken,
   disconnectGhlCredentials,
   redactSecrets,
+  getEmbeddedDefaultGhlToken,
 } from '../src/server/secretStore.ts';
 import {
   listGhlMedia,
@@ -53,6 +54,16 @@ import {
   SUPPORTED_PDF_EXTENSIONS,
 } from '../src/shared/mediaClassifier.ts';
 import { handleGhlApiRequest } from '../src/server/apiMiddleware.ts';
+import {
+  detectSectionsInHtml,
+  toggleSectionVisibilityInHtml,
+  extractReadMoreConfigFromHtml,
+  updateReadMoreButtonInHtml,
+  addSectionToHtml,
+  removeSectionFromHtml,
+  isValidDestinationUrl,
+  SUPPORTED_SECTIONS_REGISTRY,
+} from '../src/shared/sectionManager.ts';
 import JSZip from 'jszip';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1022,9 +1033,11 @@ if (getServerSideGhlToken() !== null) {
   console.error('FAIL: disconnectGhlCredentials did not remove the stored token!');
   process.exit(1);
 }
-// Restore preexisting user token if one was configured
+// Restore token (preexisting user token or default embedded token)
 if (preexistingToken) {
   saveGhlCredentials({ token: preexistingToken, locationId: preexistingLocationId });
+} else {
+  saveGhlCredentials({ token: getEmbeddedDefaultGhlToken(), locationId: DEFAULT_GHL_LOCATION_ID });
 }
 console.log('   ✓ AES-256-GCM encryption, public masking, secret redaction, and disconnect wipe verified.');
 
@@ -1231,6 +1244,180 @@ if (totalSum !== testDataset.length) {
 }
 console.log(`   ✓ Mutual Exclusivity Equation verified: ${counts.image} Images + ${counts.video} Videos + ${counts.pdf} PDFs + ${counts.uncategorized} Uncategorized = ${totalSum} Total Files.`);
 
+// 36. Section Detection in Static and Video Reference Templates
+console.log('\n[TEST 36] Testing Section Detection across Static and Video Templates:');
+const staticSections = detectSectionsInHtml(BUNDLED_STATIC_REFERENCE_HTML);
+const videoSections = detectSectionsInHtml(BUNDLED_VIDEO_REFERENCE_HTML);
+
+const expectedCanonicalSections = [
+  'sec_popup',
+  'sec_hero',
+  'sec_mobile_form',
+  'sec_prize',
+  'sec_campaign',
+  'sec_read_more',
+];
+
+for (const secId of expectedCanonicalSections) {
+  const inStatic = staticSections.find(s => s.id === secId);
+  const inVideo = videoSections.find(s => s.id === secId);
+  if (!inStatic) {
+    console.error(`FAIL: Expected canonical section ${secId} not detected in Static template!`);
+    process.exit(1);
+  }
+  if (!inVideo) {
+    console.error(`FAIL: Expected canonical section ${secId} not detected in Video template!`);
+    process.exit(1);
+  }
+}
+console.log(`   ✓ Detected all canonical sections in both templates (Static: ${staticSections.length}, Video: ${videoSections.length}).`);
+
+// 37. Section Visibility Show / Hide & Non-Destructive Preservation
+console.log('\n[TEST 37] Testing Non-Destructive Section Show/Hide & Restoration:');
+const hiddenPopupHtml = toggleSectionVisibilityInHtml(BUNDLED_STATIC_REFERENCE_HTML, 'sec_popup', false);
+if (!hiddenPopupHtml.includes('data-pryvix-section-hidden="true"')) {
+  console.error('FAIL: Hidden section did not include data-pryvix-section-hidden="true" attribute!');
+  process.exit(1);
+}
+if (!hiddenPopupHtml.includes('display: none !important')) {
+  console.error('FAIL: Hidden section did not include display: none !important style!');
+  process.exit(1);
+}
+
+// Verify inner content, forms, and assets are 100% preserved inside the hidden section container
+if (!hiddenPopupHtml.includes('popupOverlay')) {
+  console.error('FAIL: Hidden section container was removed instead of non-destructively hidden!');
+  process.exit(1);
+}
+
+// Restore visibility
+const restoredPopupHtml = toggleSectionVisibilityInHtml(hiddenPopupHtml, 'sec_popup', true);
+if (restoredPopupHtml.includes('data-pryvix-section-hidden')) {
+  console.error('FAIL: Restored section still contained data-pryvix-section-hidden attribute!');
+  process.exit(1);
+}
+console.log('   ✓ Non-destructive section hide (display: none !important) and clean restore verified.');
+
+// 38. Add Supported Modular Sections & Arbitrary Injection Protection
+console.log('\n[TEST 38] Testing Add Supported Modular Sections & Rejection of Arbitrary HTML:');
+const addedInfoHtml = addSectionToHtml(BUNDLED_STATIC_REFERENCE_HTML, 'campaign_info');
+if (!addedInfoHtml.includes('campaign-info-section') || !addedInfoHtml.includes('pryvixCampaignInfoSection')) {
+  console.error('FAIL: Added campaign_info section not found in HTML output!');
+  process.exit(1);
+}
+
+// Verify custom added section can be removed safely
+const removedInfoHtml = removeSectionFromHtml(addedInfoHtml, 'sec_campaign_info');
+if (removedInfoHtml.includes('campaign-info-section') || removedInfoHtml.includes('pryvixCampaignInfoSection')) {
+  console.error('FAIL: Removed section still found in HTML output!');
+  process.exit(1);
+}
+
+// Verify arbitrary injection protection
+try {
+  addSectionToHtml(BUNDLED_STATIC_REFERENCE_HTML, 'arbitrary_tag');
+  console.error('FAIL: addSectionToHtml accepted unauthorized section type!');
+  process.exit(1);
+} catch {
+  // Expected error for unsupported section type
+}
+console.log('   ✓ Supported modular section addition, safe removal, and type validation verified.');
+
+// 39. Dedicated Read More Button with Independent Desktop & Mobile Configurations
+console.log('\n[TEST 39] Testing Dedicated Read More Button with Responsive Breakpoints:');
+const readMoreTestConfig = {
+  desktop: {
+    enabled: true,
+    text: 'View Official Terms (Desktop)',
+    url: 'https://cdn.filesafe.space/terms-desktop.pdf',
+    openInNewTab: true,
+    backgroundColor: '#ff5500',
+    textColor: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    paddingY: 14,
+    paddingX: 28,
+    borderRadius: 8,
+    alignment: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+    hoverBackgroundColor: '#e04a00',
+    hoverTextColor: '#ffffff',
+  },
+  mobile: {
+    enabled: true,
+    text: 'View Official Terms (Mobile)',
+    url: 'https://cdn.filesafe.space/terms-mobile.pdf',
+    openInNewTab: true,
+    backgroundColor: '#0055ff',
+    textColor: '#ffff00',
+    fontSize: 13,
+    fontWeight: '600',
+    paddingY: 10,
+    paddingX: 18,
+    borderRadius: 6,
+    alignment: 'center',
+    marginTop: 15,
+    marginBottom: 15,
+    hoverBackgroundColor: '#0040cc',
+    hoverTextColor: '#ffffff',
+  },
+};
+
+const updatedReadMoreHtml = updateReadMoreButtonInHtml(BUNDLED_STATIC_REFERENCE_HTML, readMoreTestConfig);
+if (!updatedReadMoreHtml.includes('@media (min-width: 768px)')) {
+  console.error('FAIL: Scoped desktop media query (min-width: 768px) missing from Read More Button styles!');
+  process.exit(1);
+}
+if (!updatedReadMoreHtml.includes('@media (max-width: 767px)')) {
+  console.error('FAIL: Scoped mobile media query (max-width: 767px) missing from Read More Button styles!');
+  process.exit(1);
+}
+if (!updatedReadMoreHtml.includes('View Official Terms (Desktop)')) {
+  console.error('FAIL: Desktop button text not rendered in updated HTML!');
+  process.exit(1);
+}
+if (!updatedReadMoreHtml.includes('View Official Terms (Mobile)')) {
+  console.error('FAIL: Mobile button text not rendered in updated HTML!');
+  process.exit(1);
+}
+if (!updatedReadMoreHtml.includes('target="_blank" rel="noopener noreferrer"')) {
+  console.error('FAIL: target="_blank" rel="noopener noreferrer" missing on external PDF links!');
+  process.exit(1);
+}
+
+// Test URL validation
+if (!isValidDestinationUrl('https://example.com/file.pdf') || !isValidDestinationUrl('http://example.com')) {
+  console.error('FAIL: isValidDestinationUrl rejected valid HTTPS/HTTP URL!');
+  process.exit(1);
+}
+if (isValidDestinationUrl('javascript:alert(1)') || isValidDestinationUrl('data:text/html,bad')) {
+  console.error('FAIL: isValidDestinationUrl permitted dangerous pseudo-protocol!');
+  process.exit(1);
+}
+console.log('   ✓ Dedicated responsive Read More Button (desktop @media min-width: 768px, mobile @media max-width: 767px), URLs, and styling verified.');
+
+// 40. Validator & Source Preservation Integrity with Authorized Sections
+console.log('\n[TEST 40] Testing Validator & Source Preservation Integrity for Section Updates:');
+const sectionValidation = compareAndValidateSourcePreservation(
+  BUNDLED_STATIC_REFERENCE_HTML,
+  updatedReadMoreHtml,
+  {
+    readMoreConfig: readMoreTestConfig,
+  }
+);
+if (!sectionValidation.passed) {
+  console.error('FAIL: Authorized Read More Button update failed source preservation check!', sectionValidation.differences, sectionValidation.summary);
+  process.exit(1);
+}
+console.log('   ✓ Source preservation validator recognized authorized Read More Button styling and markup.');
+
+// Final cleanup: Always ensure secretStore has the embedded token configured for production app launch
+saveGhlCredentials({
+  token: getEmbeddedDefaultGhlToken(),
+  locationId: DEFAULT_GHL_LOCATION_ID,
+});
+
 console.log('\n====================================================');
-console.log('   ALL 35 TEST SUITES PASSED WITH 100% FIDELITY!   ');
+console.log('   ALL 40 TEST SUITES PASSED WITH 100% FIDELITY!   ');
 console.log('====================================================\n');

@@ -79,14 +79,71 @@ export interface GHLForm {
   dataAttributes?: Record<string, string>;
 }
 
+export interface ReadMoreButtonConfig {
+  enabled: boolean;
+  text: string;
+  url: string;
+  openInNewTab: boolean;
+  backgroundColor: string;
+  textColor: string;
+  fontSize: string;
+  fontWeight: string;
+  width: string;
+  padding: string;
+  borderRadius: string;
+  alignment: 'left' | 'center' | 'right';
+  marginTop: string;
+  marginBottom: string;
+  hoverBackgroundColor?: string;
+  hoverTextColor?: string;
+}
+
+export interface ReadMoreSectionConfig {
+  desktop: ReadMoreButtonConfig;
+  mobile: ReadMoreButtonConfig;
+}
+
+export type SupportedSectionType =
+  | 'popup'
+  | 'hero'
+  | 'mobile_form'
+  | 'prize'
+  | 'campaign_details'
+  | 'read_more_button'
+  | 'additional_content'
+  | 'campaign_info'
+  | 'form'
+  | 'floating'
+  | 'other';
+
 export interface ComponentSection {
   id: string;
   name: string;
-  type: 'hero' | 'popup' | 'prize' | 'campaign_details' | 'form' | 'floating' | 'other';
+  type: SupportedSectionType;
+  visible: boolean;
+  desktopVisible?: boolean;
+  mobileVisible?: boolean;
+  order?: number;
+  isAddable?: boolean;
+  isDeletable?: boolean;
+  isCustomAdded?: boolean;
+  originalHtml?: string;
+  config?: {
+    readMore?: ReadMoreSectionConfig;
+    customContent?: {
+      title?: string;
+      bodyText?: string;
+    };
+  };
   assetIds: string[];
   formIds: string[];
   headings: { text: string; selector: string; line?: number }[];
   links: { text: string; href: string; selector: string; line?: number }[];
+}
+
+export interface SectionManagerSettings {
+  sections: ComponentSection[];
+  readMoreConfig?: ReadMoreSectionConfig;
 }
 
 export interface ChangeHistoryEntry {
@@ -167,6 +224,8 @@ export interface Project {
   syncTitleWithProjectName?: boolean;
   backgroundConfiguration?: BackgroundConfig;
   formTitle?: string;
+  sectionSettings?: SectionManagerSettings;
+  readMoreConfiguration?: ReadMoreSectionConfig;
 }
 
 export interface PortableSettings {
@@ -267,12 +326,28 @@ export interface VideoQualityAssessment {
 
 // Source Comparison and Fidelity Audit Types
 export interface SourceComparisonDifference {
-  type: 'image_replacement' | 'video_replacement' | 'form_replacement' | 'unpermitted_change';
+  type:
+    | 'image_replacement'
+    | 'video_replacement'
+    | 'form_replacement'
+    | 'section_visibility'
+    | 'section_addition'
+    | 'read_more_config'
+    | 'unpermitted_change';
   location: string;
   originalValue: string;
   replacedValue: string;
   isPermitted: boolean;
   description: string;
+}
+
+export interface ExplicitReplacementsMap {
+  images?: { originalUrl: string; currentUrl: string; label?: string }[];
+  videos?: { originalUrl: string; currentUrl: string; label?: string }[];
+  forms?: { originalFormId: string; newFormId: string; formName?: string }[];
+  hiddenSections?: string[];
+  addedSections?: string[];
+  readMoreConfig?: ReadMoreSectionConfig;
 }
 
 export interface SourceComparisonReport {

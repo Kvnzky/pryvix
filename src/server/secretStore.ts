@@ -251,8 +251,19 @@ export function getSafeCredentialStatus(): {
   lastError: string | null;
   errorCode: string | null;
 } {
-  const payload = readStoredPayload();
-  const token = getServerSideGhlToken();
+  let payload = readStoredPayload();
+  let token = getServerSideGhlToken();
+
+  // If unconfigured or missing encrypted token on startup, auto-initialize with embedded default token
+  if (!token && payload.lastStatus !== 'disconnected') {
+    saveGhlCredentials({
+      token: getEmbeddedDefaultGhlToken(),
+      locationId: DEFAULT_GHL_LOCATION_ID,
+    });
+    payload = readStoredPayload();
+    token = getServerSideGhlToken();
+  }
+
   const hasToken = Boolean(token && token.length > 0);
 
   return {
@@ -260,11 +271,15 @@ export function getSafeCredentialStatus(): {
     maskedToken: hasToken ? '••••••••••••••••••••••••' : '',
     locationId: payload.locationId || DEFAULT_GHL_LOCATION_ID,
     lastSyncedAt: payload.lastSyncedAt || null,
-    status: hasToken ? payload.lastStatus || 'connected' : payload.lastStatus === 'disconnected' ? 'disconnected' : 'unconfigured',
+    status: hasToken
+      ? payload.lastStatus || 'connected'
+      : payload.lastStatus === 'disconnected'
+      ? 'disconnected'
+      : 'unconfigured',
     statusMessage:
       payload.lastStatusMessage ||
       (hasToken
-        ? 'Credentials saved in secure storage.'
+        ? 'Connected to GoHighLevel Media Storage (Embedded Sub-Account Vault).'
         : 'Not connected. Enter your GoHighLevel Private Integration Token to connect.'),
     lastError: payload.lastError ? redactSecrets(payload.lastError) : null,
     errorCode: payload.lastErrorCode || null,

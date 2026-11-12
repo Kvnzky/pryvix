@@ -17,6 +17,8 @@ import {
   ComponentSection,
   ChangeHistoryEntry,
   BackgroundConfig,
+  ReadMoreSectionConfig,
+  SupportedSectionType,
 } from '@shared/types';
 import {
   initStorage,
@@ -45,6 +47,12 @@ import {
   updateSharedFormTitleInHtml,
   resolveSharedFormTitle,
 } from '@shared/parser';
+import {
+  toggleSectionVisibilityInHtml,
+  updateReadMoreButtonInHtml,
+  addSectionToHtml,
+  removeSectionFromHtml,
+} from '@shared/sectionManager';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
@@ -355,6 +363,171 @@ export default function App() {
     setHistory(getHistory(activeProject.id));
   };
 
+  // Toggle Section Visibility
+  const handleToggleSectionVisibility = (sectionId: string, visible: boolean) => {
+    if (!activeProject) return;
+    pushUndo(activeProject.currentHtml);
+
+    const updatedHtml = toggleSectionVisibilityInHtml(activeProject.currentHtml, sectionId, visible);
+    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
+    const preservedAssets = preserveOriginalAssetUrls(
+      reanalysis.assets,
+      assets,
+      activeProject.originalHtml,
+      activeProject.id
+    );
+
+    const hiddenIds = reanalysis.sections.filter(s => s.visible === false).map(s => s.id);
+
+    const updatedProject: Project = {
+      ...activeProject,
+      currentHtml: updatedHtml,
+      updatedAt: new Date().toISOString(),
+      sectionSettings: {
+        hiddenSectionIds: hiddenIds,
+        customSections: activeProject.sectionSettings?.customSections || [],
+      },
+    };
+
+    setActiveProject(updatedProject);
+    setAssets(preservedAssets);
+    setSections(reanalysis.sections);
+    setForms(reanalysis.forms);
+
+    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
+
+    addHistoryEntry(activeProject.id, {
+      projectId: activeProject.id,
+      component: `Section: ${sectionId}`,
+      description: `${visible ? 'Showed' : 'Hid'} section ${sectionId}`,
+      prevValue: (!visible).toString(),
+      newValue: visible.toString(),
+      type: 'code_edit',
+    });
+
+    setHistory(getHistory(activeProject.id));
+  };
+
+  // Update Read More Button Configuration
+  const handleUpdateReadMoreConfig = (newConfig: ReadMoreSectionConfig) => {
+    if (!activeProject) return;
+    pushUndo(activeProject.currentHtml);
+
+    const updatedHtml = updateReadMoreButtonInHtml(activeProject.currentHtml, newConfig);
+    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
+    const preservedAssets = preserveOriginalAssetUrls(
+      reanalysis.assets,
+      assets,
+      activeProject.originalHtml,
+      activeProject.id
+    );
+
+    const updatedProject: Project = {
+      ...activeProject,
+      currentHtml: updatedHtml,
+      updatedAt: new Date().toISOString(),
+      readMoreConfiguration: newConfig,
+    };
+
+    setActiveProject(updatedProject);
+    setAssets(preservedAssets);
+    setSections(reanalysis.sections);
+    setForms(reanalysis.forms);
+
+    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
+
+    addHistoryEntry(activeProject.id, {
+      projectId: activeProject.id,
+      component: 'Read More Button',
+      description: 'Updated responsive Read More Button styling and URLs',
+      prevValue: activeProject.readMoreConfiguration?.desktop?.url || '',
+      newValue: newConfig.desktop.url || '',
+      type: 'code_edit',
+    });
+
+    setHistory(getHistory(activeProject.id));
+  };
+
+  // Add Supported Section
+  const handleAddSection = (sectionType: SupportedSectionType) => {
+    if (!activeProject) return;
+    pushUndo(activeProject.currentHtml);
+
+    const updatedHtml = addSectionToHtml(activeProject.currentHtml, sectionType);
+    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
+    const preservedAssets = preserveOriginalAssetUrls(
+      reanalysis.assets,
+      assets,
+      activeProject.originalHtml,
+      activeProject.id
+    );
+
+    const updatedProject: Project = {
+      ...activeProject,
+      currentHtml: updatedHtml,
+      updatedAt: new Date().toISOString(),
+      assetCount: preservedAssets.length,
+    };
+
+    setActiveProject(updatedProject);
+    setAssets(preservedAssets);
+    setSections(reanalysis.sections);
+    setForms(reanalysis.forms);
+
+    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
+
+    addHistoryEntry(activeProject.id, {
+      projectId: activeProject.id,
+      component: 'Section Manager',
+      description: `Added supported section ${sectionType}`,
+      prevValue: '',
+      newValue: sectionType,
+      type: 'code_edit',
+    });
+
+    setHistory(getHistory(activeProject.id));
+  };
+
+  // Remove Custom Section
+  const handleRemoveSection = (sectionId: string) => {
+    if (!activeProject) return;
+    pushUndo(activeProject.currentHtml);
+
+    const updatedHtml = removeSectionFromHtml(activeProject.currentHtml, sectionId);
+    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
+    const preservedAssets = preserveOriginalAssetUrls(
+      reanalysis.assets,
+      assets,
+      activeProject.originalHtml,
+      activeProject.id
+    );
+
+    const updatedProject: Project = {
+      ...activeProject,
+      currentHtml: updatedHtml,
+      updatedAt: new Date().toISOString(),
+      assetCount: preservedAssets.length,
+    };
+
+    setActiveProject(updatedProject);
+    setAssets(preservedAssets);
+    setSections(reanalysis.sections);
+    setForms(reanalysis.forms);
+
+    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
+
+    addHistoryEntry(activeProject.id, {
+      projectId: activeProject.id,
+      component: 'Section Manager',
+      description: `Removed section ${sectionId}`,
+      prevValue: sectionId,
+      newValue: '',
+      type: 'code_edit',
+    });
+
+    setHistory(getHistory(activeProject.id));
+  };
+
   // Direct Code Editor Save
   const handleSaveCode = (newHtml: string, desc?: string) => {
     if (!activeProject) return;
@@ -651,6 +824,10 @@ export default function App() {
                 onRestoreOriginal={handleRestoreOriginalImage}
                 onJumpToCode={handleJumpToCode}
                 onUpdateBackgroundConfig={handleUpdateBackgroundConfig}
+                onToggleSectionVisibility={handleToggleSectionVisibility}
+                onUpdateReadMoreConfig={handleUpdateReadMoreConfig}
+                onAddSection={handleAddSection}
+                onRemoveSection={handleRemoveSection}
               />
             )}
 

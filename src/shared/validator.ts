@@ -5,6 +5,7 @@ import {
   GHLForm,
   SourceComparisonReport,
   SourceComparisonDifference,
+  ExplicitReplacementsMap,
 } from './types';
 
 export function validateLandingPage(
@@ -258,11 +259,7 @@ export function validateLandingPage(
 export function compareAndValidateSourcePreservation(
   referenceHtml: string,
   candidateHtml: string,
-  explicitReplacements: {
-    images?: { originalUrl: string; currentUrl: string; label?: string }[];
-    videos?: { originalUrl: string; currentUrl: string; label?: string }[];
-    forms?: { originalFormId: string; newFormId: string; formName?: string }[];
-  }
+  explicitReplacements: ExplicitReplacementsMap = {}
 ): SourceComparisonReport {
   const normRef = (referenceHtml || '').replace(/\r\n/g, '\n').trim();
   const normCand = (candidateHtml || '').replace(/\r\n/g, '\n').trim();
@@ -309,6 +306,18 @@ export function compareAndValidateSourcePreservation(
     }
   });
 
+  // Track authorized hidden sections
+  (explicitReplacements.hiddenSections || []).forEach(secId => {
+    differences.push({
+      type: 'section_visibility',
+      location: `Section [${secId}]`,
+      originalValue: 'Visible',
+      replacedValue: 'Hidden',
+      isPermitted: true,
+      description: `Authorized section visibility change: section [${secId}] marked hidden.`,
+    });
+  });
+
   // 1. HTML ELEMENT / TAG STRUCTURE CHECK
   const extractTags = (html: string) => {
     const matches: string[] = [];
@@ -320,19 +329,48 @@ export function compareAndValidateSourcePreservation(
     return matches;
   };
 
+  const countAuthorizedComponentTags = (html: string) => {
+    let count = 0;
+    const rmStyle = /<style\b[^>]*id\s*=\s*["']pryvix-read-more-styles["'][^>]*>[\s\S]*?<\/style>/i.exec(html);
+    if (rmStyle) count += extractTags(rmStyle[0]).length;
+    const rmWrapper = /<div\b[^>]*class\s*=\s*["'][^"']*\bpryvix-read-more-wrapper\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i.exec(html);
+    if (rmWrapper) {
+      count += Math.max(0, extractTags(rmWrapper[0]).length - 3);
+    }
+    const addSec = /<section\b[^>]*class\s*=\s*["'][^"']*\badditional-content-section\b[^"']*["'][^>]*>[\s\S]*?<\/section>/i.exec(html);
+    if (addSec) count += extractTags(addSec[0]).length;
+    const infoSec = /<section\b[^>]*class\s*=\s*["'][^"']*\bcampaign-info-section\b[^"']*["'][^>]*>[\s\S]*?<\/section>/i.exec(html);
+    if (infoSec) count += extractTags(infoSec[0]).length;
+    return count;
+  };
+
   const refTags = extractTags(normRef);
   const candTags = extractTags(normCand);
 
-  if (candTags.length > refTags.length) {
-    const diffCount = candTags.length - refTags.length;
-    checks.addedHtmlElements += diffCount;
+  const authorizedExtraTags = countAuthorizedComponentTags(normCand);
+  const rawDiff = candTags.length - refTags.length;
+  const netDiff = Math.max(0, rawDiff - authorizedExtraTags);
+
+  if (authorizedExtraTags > 0) {
+    differences.push({
+      type: 'section_addition',
+      location: 'Section Manager Components',
+      originalValue: 'Default Structure',
+      replacedValue: `${authorizedExtraTags} authorized component tags`,
+      isPermitted: true,
+      description: `Authorized additions: Section Manager components and Read More Button markup.`,
+    });
+  }
+
+  if (netDiff > 0) {
+    checks.addedHtmlElements += netDiff;
     differences.push({
       type: 'unpermitted_change',
       location: 'DOM Structure',
       originalValue: `${refTags.length} tags`,
       replacedValue: `${candTags.length} tags`,
       isPermitted: false,
-      description: `Detected ${diffCount} unpermitted additional HTML element(s) inserted into the document.`,
+      description: `Detected ${netDiff} unpermitted additional HTML element(s) inserted into the document.`,
     });
   } else if (candTags.length < refTags.length) {
     const diffCount = refTags.length - candTags.length;
@@ -445,6 +483,11 @@ export function compareAndValidateSourcePreservation(
     while ((m = urlFuncRegex.exec(html)) !== null) {
       urls.add(m[1].trim());
     }
+    // a href
+    const hrefRegex = /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi;
+    while ((m = hrefRegex.exec(html)) !== null) {
+      urls.add(m[1].trim());
+    }
     return urls;
   };
 
@@ -457,7 +500,7 @@ export function compareAndValidateSourcePreservation(
       // Check if it is permitted
       let isPermitted = false;
       let matchedOrig = '';
-      let repType: 'image_replacement' | 'video_replacement' | 'form_replacement' = 'image_replacement';
+      let repType: SourceComparisonDifference['type'] = 'image_replacement';
 
       for (const { orig, rep } of permittedImageList) {
         if (rep === cUrl) {
@@ -486,6 +529,15 @@ export function compareAndValidateSourcePreservation(
             repType = 'form_replacement';
             break;
           }
+        }
+      }
+      if (!isPermitted && explicitReplacements.readMoreConfig) {
+        const dUrl = explicitReplacements.readMoreConfig.desktop?.url;
+        const mUrl = explicitReplacements.readMoreConfig.mobile?.url;
+        if ((dUrl && cUrl === dUrl) || (mUrl && cUrl === mUrl)) {
+          isPermitted = true;
+          matchedOrig = 'Original Read More Destination';
+          repType = 'read_more_config';
         }
       }
 

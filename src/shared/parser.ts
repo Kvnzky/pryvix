@@ -7,7 +7,31 @@ import {
   AssetStatus,
   BackgroundMode,
   BackgroundConfig,
+  ReadMoreSectionConfig,
 } from './types';
+import {
+  detectSectionsInHtml,
+  toggleSectionVisibilityInHtml,
+  updateReadMoreButtonInHtml,
+  extractReadMoreConfigFromHtml,
+  addSectionToHtml,
+  removeSectionFromHtml,
+  DEFAULT_READ_MORE_CONFIG,
+  isValidDestinationUrl,
+  SUPPORTED_SECTIONS_REGISTRY,
+} from './sectionManager';
+
+export {
+  detectSectionsInHtml,
+  toggleSectionVisibilityInHtml,
+  updateReadMoreButtonInHtml,
+  extractReadMoreConfigFromHtml,
+  addSectionToHtml,
+  removeSectionFromHtml,
+  DEFAULT_READ_MORE_CONFIG,
+  isValidDestinationUrl,
+  SUPPORTED_SECTIONS_REGISTRY,
+};
 import {
   DEFAULT_STATIC_DESKTOP_IMAGE,
   DEFAULT_STATIC_MOBILE_IMAGE,
@@ -142,6 +166,7 @@ export function analyzeHtml(html: string, projectId: string): ParseAnalysisResul
         id,
         name,
         type,
+        visible: true,
         assetIds: [],
         formIds: [],
         headings: [],
@@ -741,10 +766,21 @@ export function analyzeHtml(html: string, projectId: string): ParseAnalysisResul
   const desktopImages = assets.filter(a => a.device === 'desktop').length;
   const mobileImages = assets.filter(a => a.device === 'mobile' || a.device === 'tablet').length;
 
+  // Enhance & synchronize sections with authoritative registry and live visibility
+  const registrySections = detectSectionsInHtml(html, sections);
+  const finalSections: ComponentSection[] = [...registrySections];
+
+  // Preserve any custom sections detected during parse
+  sections.forEach(s => {
+    if (!finalSections.some(f => f.id === s.id)) {
+      finalSections.push(s);
+    }
+  });
+
   return {
     assets,
     forms,
-    sections,
+    sections: finalSections,
     stats: {
       totalImages: assets.length,
       desktopImages,
