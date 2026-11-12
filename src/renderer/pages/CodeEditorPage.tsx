@@ -19,6 +19,7 @@ interface CodeEditorPageProps {
   project: Project;
   initialLineNumber?: number;
   onSaveCode: (newHtml: string) => void;
+  onAutoSyncCode?: (newHtml: string) => void;
 }
 
 type TabType = 'full' | 'html' | 'css' | 'js';
@@ -27,6 +28,7 @@ export const CodeEditorPage: React.FC<CodeEditorPageProps> = ({
   project,
   initialLineNumber,
   onSaveCode,
+  onAutoSyncCode,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('full');
   const [code, setCode] = useState(project.currentHtml);
@@ -34,33 +36,96 @@ export const CodeEditorPage: React.FC<CodeEditorPageProps> = ({
   const [hasChanges, setHasChanges] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const editorRef = useRef<any>(null);
+  const latestCodeRef = useRef(project.currentHtml);
+  const isSelfUpdateRef = useRef(false);
+  const autoSyncTimeoutRef = useRef<any>(null);
 
+  // Synchronize incoming external changes from Landing Page Editor or Form Manager into Monaco
   useEffect(() => {
+    if (isSelfUpdateRef.current) {
+      isSelfUpdateRef.current = false;
+      return;
+    }
+
+    latestCodeRef.current = project.currentHtml;
     setCode(project.currentHtml);
     setHasChanges(false);
+
+    if (editorRef.current) {
+      const currentVal = editorRef.current.getValue();
+      if (currentVal !== project.currentHtml) {
+        const viewState = editorRef.current.saveViewState();
+        editorRef.current.setValue(project.currentHtml);
+        if (viewState) {
+          editorRef.current.restoreViewState(viewState);
+        }
+      }
+    }
   }, [project.currentHtml]);
 
-  const handleEditorDidMount: OnMount = (editor, monaco) => {
+  // Flush any pending unsynced code changes on unmount or tab switch
+  useEffect(() => {
+    return () => {
+      if (autoSyncTimeoutRef.current) {
+        clearTimeout(autoSyncTimeoutRef.current);
+      }
+      if (latestCodeRef.current !== project.currentHtml && onAutoSyncCode) {
+        onAutoSyncCode(latestCodeRef.current);
+      }
+    };
+  }, [project.currentHtml, onAutoSyncCode]);
+
+  // Scroll to targeted line when initialLineNumber changes
+  useEffect(() => {
+    if (editorRef.current && initialLineNumber && initialLineNumber > 0) {
+      editorRef.current.revealLineInCenter(initialLineNumber);
+      editorRef.current.setPosition({ lineNumber: initialLineNumber, column: 1 });
+      editorRef.current.focus();
+    }
+  }, [initialLineNumber]);
+
+  const handleEditorDidMount: OnMount = (editor, _monaco) => {
     editorRef.current = editor;
+
+    if (editor.getValue() !== project.currentHtml) {
+      editor.setValue(project.currentHtml);
+    }
 
     if (initialLineNumber && initialLineNumber > 0) {
       setTimeout(() => {
         editor.revealLineInCenter(initialLineNumber);
         editor.setPosition({ lineNumber: initialLineNumber, column: 1 });
         editor.focus();
-      }, 200);
+      }, 150);
     }
   };
 
   const handleCodeChange = (value?: string) => {
     if (value !== undefined) {
+      latestCodeRef.current = value;
       setCode(value);
       setHasChanges(value !== project.currentHtml);
+
+      if (autoSyncTimeoutRef.current) {
+        clearTimeout(autoSyncTimeoutRef.current);
+      }
+
+      if (value !== project.currentHtml && onAutoSyncCode) {
+        autoSyncTimeoutRef.current = setTimeout(() => {
+          if (latestCodeRef.current !== project.currentHtml) {
+            isSelfUpdateRef.current = true;
+            onAutoSyncCode(latestCodeRef.current);
+          }
+        }, 400);
+      }
     }
   };
 
   const handleSave = () => {
     try {
+      if (autoSyncTimeoutRef.current) {
+        clearTimeout(autoSyncTimeoutRef.current);
+      }
       onSaveCode(code);
       setHasChanges(false);
       setSaveSuccess(true);

@@ -52,9 +52,23 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
 
   const currentForm = forms[activeFormIndex] || forms[0];
 
+  // Ref tracking latest input values for immediate unmount flush
+  const latestInputsRef = React.useRef({
+    formId: '',
+    height: '',
+    closingCustomValue: '',
+    title: project.formTitle || '',
+    activeFormId: currentForm?.id || '',
+  });
+
+  const syncFormTimeoutRef = React.useRef<any>(null);
+  const syncTitleTimeoutRef = React.useRef<any>(null);
+
+  // Sync state when project.formTitle changes externally (e.g. from Code Editor)
   React.useEffect(() => {
-    if (project.formTitle !== undefined) {
+    if (project.formTitle !== undefined && project.formTitle !== latestInputsRef.current.title) {
       setSharedFormTitle(project.formTitle);
+      latestInputsRef.current.title = project.formTitle;
     }
   }, [project.formTitle]);
 
@@ -64,13 +78,61 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
     }
   }, [externalValidationError]);
 
+  // Sync state when active form or forms data changes externally (e.g. from Code Editor)
   React.useEffect(() => {
     if (currentForm) {
       setFormIdInput(currentForm.formId || '');
       setHeightInput(String(currentForm.height || '1465'));
       setClosingCustomValueInput(currentForm.customScripts?.closingCustomValue || '');
+
+      latestInputsRef.current.formId = currentForm.formId || '';
+      latestInputsRef.current.height = String(currentForm.height || '1465');
+      latestInputsRef.current.closingCustomValue = currentForm.customScripts?.closingCustomValue || '';
+      latestInputsRef.current.activeFormId = currentForm.id;
     }
-  }, [currentForm?.id, currentForm?.customScripts?.closingCustomValue]);
+  }, [
+    currentForm?.id,
+    currentForm?.formId,
+    currentForm?.height,
+    currentForm?.customScripts?.closingCustomValue,
+  ]);
+
+  // Flush any pending form modifications on unmount or tab switch
+  React.useEffect(() => {
+    return () => {
+      if (syncFormTimeoutRef.current) {
+        clearTimeout(syncFormTimeoutRef.current);
+      }
+      if (syncTitleTimeoutRef.current) {
+        clearTimeout(syncTitleTimeoutRef.current);
+      }
+
+      const activeId = latestInputsRef.current.activeFormId;
+      const target = forms.find(f => f.id === activeId);
+      if (target) {
+        const changedFormId = latestInputsRef.current.formId.trim();
+        const changedHeight = latestInputsRef.current.height.trim();
+        const changedClosing = latestInputsRef.current.closingCustomValue.trim();
+
+        if (
+          changedFormId !== target.formId ||
+          changedHeight !== String(target.height) ||
+          changedClosing !== (target.customScripts?.closingCustomValue || '').trim()
+        ) {
+          onUpdateForm(target.id, {
+            formId: changedFormId || target.formId,
+            height: changedHeight || target.height,
+            closingCustomValue: changedClosing,
+          });
+        }
+      }
+
+      const changedTitle = latestInputsRef.current.title.trim();
+      if (changedTitle && changedTitle !== (project.formTitle || '').trim()) {
+        onUpdateSharedFormTitle(changedTitle);
+      }
+    };
+  }, [forms, project.formTitle, onUpdateForm, onUpdateSharedFormTitle]);
 
   if (forms.length === 0) {
     return (
@@ -86,20 +148,85 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
     );
   }
 
+  const triggerAutoSyncForm = (fieldUpdates: {
+    formId?: string;
+    height?: string;
+    closingCustomValue?: string;
+  }) => {
+    if (!currentForm) return;
+
+    if (syncFormTimeoutRef.current) {
+      clearTimeout(syncFormTimeoutRef.current);
+    }
+
+    syncFormTimeoutRef.current = setTimeout(() => {
+      onUpdateForm(currentForm.id, fieldUpdates);
+    }, 400);
+  };
+
+  const handleSharedTitleChange = (val: string) => {
+    setSharedFormTitle(val);
+    latestInputsRef.current.title = val;
+    if (val.trim()) {
+      setNameValidationError(null);
+    }
+
+    if (syncTitleTimeoutRef.current) {
+      clearTimeout(syncTitleTimeoutRef.current);
+    }
+
+    if (val.trim()) {
+      syncTitleTimeoutRef.current = setTimeout(() => {
+        onUpdateSharedFormTitle(val.trim());
+      }, 400);
+    }
+  };
+
   const handleSharedTitleBlur = () => {
     const trimmed = sharedFormTitle.trim();
     if (!trimmed) {
       setNameValidationError('Form Title / Name is required. Please enter a name before continuing.');
       return;
     }
+    if (syncTitleTimeoutRef.current) {
+      clearTimeout(syncTitleTimeoutRef.current);
+    }
     setNameValidationError(null);
     setSharedFormTitle(trimmed);
+    latestInputsRef.current.title = trimmed;
     onUpdateSharedFormTitle(trimmed);
+  };
+
+  const handleFormIdChange = (val: string) => {
+    setFormIdInput(val);
+    latestInputsRef.current.formId = val;
+    if (val.trim()) {
+      triggerAutoSyncForm({ formId: val.trim() });
+    }
+  };
+
+  const handleHeightChange = (val: string) => {
+    setHeightInput(val);
+    latestInputsRef.current.height = val;
+    triggerAutoSyncForm({ height: val.trim() });
+  };
+
+  const handleClosingCustomValueChange = (val: string) => {
+    setClosingCustomValueInput(val);
+    latestInputsRef.current.closingCustomValue = val;
+    triggerAutoSyncForm({ closingCustomValue: val.trim() });
   };
 
   const handleApplyChanges = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentForm) return;
+
+    if (syncFormTimeoutRef.current) {
+      clearTimeout(syncFormTimeoutRef.current);
+    }
+    if (syncTitleTimeoutRef.current) {
+      clearTimeout(syncTitleTimeoutRef.current);
+    }
 
     const trimmedTitle = sharedFormTitle.trim();
     if (!trimmedTitle) {
@@ -126,6 +253,10 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
     if (!currentForm) return;
     const trimmed = closingCustomValueInput.trim();
     if (!trimmed) return;
+
+    if (syncFormTimeoutRef.current) {
+      clearTimeout(syncFormTimeoutRef.current);
+    }
 
     onUpdateForm(currentForm.id, {
       closingCustomValue: trimmed,
@@ -209,12 +340,7 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
             <input
               type="text"
               value={sharedFormTitle}
-              onChange={e => {
-                setSharedFormTitle(e.target.value);
-                if (e.target.value.trim()) {
-                  setNameValidationError(null);
-                }
-              }}
+              onChange={e => handleSharedTitleChange(e.target.value)}
               onBlur={handleSharedTitleBlur}
               placeholder="e.g. Mega Rewards EDM Form"
               className={`flex-1 bg-[#0a0e1a] border ${
@@ -234,6 +360,7 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
                 }
                 setNameValidationError(null);
                 setSharedFormTitle(trimmed);
+                latestInputsRef.current.title = trimmed;
                 onUpdateSharedFormTitle(trimmed);
                 setSuccessMessage('Shared Form Title / Name saved!');
                 setTimeout(() => setSuccessMessage(null), 3000);
@@ -297,7 +424,11 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
                     <input
                       type="text"
                       value={formIdInput}
-                      onChange={e => setFormIdInput(e.target.value)}
+                      onChange={e => handleFormIdChange(e.target.value)}
+                      onBlur={() => {
+                        const trimmed = formIdInput.trim();
+                        if (trimmed) triggerAutoSyncForm({ formId: trimmed });
+                      }}
                       placeholder="e.g. DuEWLBc3a3oXylBTrYC7"
                       className="w-full bg-[#0a0e1a] border border-[#1e2942] rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-[#2563eb]"
                       required
@@ -326,7 +457,11 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
                     <input
                       type="text"
                       value={heightInput}
-                      onChange={e => setHeightInput(e.target.value)}
+                      onChange={e => handleHeightChange(e.target.value)}
+                      onBlur={() => {
+                        const trimmed = heightInput.trim();
+                        if (trimmed) triggerAutoSyncForm({ height: trimmed });
+                      }}
                       placeholder="1465"
                       className="w-full bg-[#0a0e1a] border border-[#1e2942] rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-[#2563eb]"
                     />
@@ -423,7 +558,11 @@ export const FormManagerPage: React.FC<FormManagerPageProps> = ({
                   <input
                     type="text"
                     value={closingCustomValueInput}
-                    onChange={e => setClosingCustomValueInput(e.target.value)}
+                    onChange={e => handleClosingCustomValueChange(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = closingCustomValueInput.trim();
+                      if (trimmed) triggerAutoSyncForm({ closingCustomValue: trimmed });
+                    }}
                     placeholder="e.g. {{custom_values.gtagaming_gift_cards_form_closing}}"
                     style={{ color: '#a78bfa', backgroundColor: '#0e1426' }}
                     className="flex-1 min-w-0 bg-[#0e1426] border border-[#1e2942] focus:border-[#2563eb] rounded-lg px-3 py-2 text-xs font-mono text-violet-300 placeholder-gray-600 focus:outline-none shadow-inner"

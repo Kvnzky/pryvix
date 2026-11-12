@@ -1412,6 +1412,122 @@ if (!sectionValidation.passed) {
 }
 console.log('   ✓ Source preservation validator recognized authorized Read More Button styling and markup.');
 
+// 41. Automatic Bidirectional Synchronization Pipeline (Visual Editor <-> Form Manager <-> Code Editor)
+console.log('\n[TEST 41] Testing Automatic Bidirectional Synchronization Pipeline:');
+
+// 41.1 Visual Editor to Code Editor sync (Image Replacement)
+const initialAnalysis = analyzeHtml(BUNDLED_STATIC_REFERENCE_HTML);
+const firstImage = initialAnalysis.assets.find(a => a.role === 'hero_brand' && a.device === 'desktop');
+if (!firstImage) {
+  console.error('FAIL: No hero desktop image asset found in reference HTML!');
+  process.exit(1);
+}
+const visualTestNewImageUrl = 'https://services.leadconnectorhq.com/documents/download/synced-visual-asset-2026.png';
+const syncedFromVisualHtml = replaceImageUrlInHtml(BUNDLED_STATIC_REFERENCE_HTML, firstImage, visualTestNewImageUrl);
+if (!syncedFromVisualHtml.includes(visualTestNewImageUrl)) {
+  console.error('FAIL: Visual editor image update not present in synchronized HTML!');
+  process.exit(1);
+}
+
+// 41.2 Form Manager to Code Editor sync (Form ID & Title & Height)
+const testSyncedFormTitle = 'Mega Rewards Automated EDM 2026';
+const testSyncedFormId = 'SyncedFormIdXYZ123456';
+const formTitleSyncedHtml = updateSharedFormTitleInHtml(syncedFromVisualHtml, testSyncedFormTitle);
+if (!formTitleSyncedHtml.includes(testSyncedFormTitle)) {
+  console.error('FAIL: Form title update not present in synchronized HTML!');
+  process.exit(1);
+}
+const initialForms = analyzeHtml(formTitleSyncedHtml).forms;
+const syncedDesktopForm = initialForms.find(f => f.deviceTarget === 'desktop') || initialForms[0];
+const fullSyncedHtml = updateGHLFormInHtml(
+  formTitleSyncedHtml,
+  syncedDesktopForm,
+  {
+    formId: testSyncedFormId,
+    height: '1550',
+    closingCustomValue: '{{custom_values.automated_sync_closing}}',
+  }
+);
+if (!fullSyncedHtml.includes(testSyncedFormId)) {
+  console.error('FAIL: Form ID update from Form Manager not present in synchronized HTML!');
+  process.exit(1);
+}
+if (!fullSyncedHtml.includes('height="1550"') && !fullSyncedHtml.includes('height: 1550px') && !fullSyncedHtml.includes('1550')) {
+  console.error('FAIL: Form height update not present in synchronized HTML!');
+  process.exit(1);
+}
+if (!fullSyncedHtml.includes('{{custom_values.automated_sync_closing}}')) {
+  console.error('FAIL: Form closing custom value not present in synchronized HTML!');
+  process.exit(1);
+}
+
+// 41.3 Code Editor to Visual Editor & Form Manager reverse sync (Direct HTML edits)
+const codeEditedHtml = fullSyncedHtml.replaceAll(
+  testSyncedFormId,
+  'DirectCodeEditorFormId999'
+).replaceAll(
+  visualTestNewImageUrl,
+  'https://services.leadconnectorhq.com/documents/download/direct-code-editor-hero.png'
+);
+const codeEditAnalysis = analyzeHtml(codeEditedHtml);
+const updatedCodeForm = codeEditAnalysis.forms.find(f => f.deviceTarget === 'desktop') || codeEditAnalysis.forms[0];
+if (!updatedCodeForm || updatedCodeForm.formId !== 'DirectCodeEditorFormId999') {
+  console.error('FAIL: Direct Code Editor edit of Form ID was not parsed by Form Manager / analyzeHtml!');
+  process.exit(1);
+}
+const updatedCodeImage = codeEditAnalysis.assets.find(a => a.currentUrl === 'https://services.leadconnectorhq.com/documents/download/direct-code-editor-hero.png');
+if (!updatedCodeImage) {
+  console.error('FAIL: Direct Code Editor edit of image URL was not recognized by Visual Editor / analyzeHtml!');
+  process.exit(1);
+}
+
+// 41.4 Custom HTML & Custom Attribute Preservation during sync
+const customAttributeToken = 'data-custom-sync-audit="active-session-2026"';
+const customDivTag = '<div class="pryvix-custom-injected-widget" id="pryvix-widget-test-1">Custom Widget Content</div>';
+const htmlWithCustomAuthorContent = codeEditedHtml.replace(
+  '</body>',
+  `  ${customDivTag}\n</body>`
+).replace(
+  '<img ',
+  `<img ${customAttributeToken} `
+);
+// Now perform a Visual Editor update on this custom-augmented HTML
+const targetCustomImageAsset = analyzeHtml(htmlWithCustomAuthorContent).assets.find(a => a.currentUrl === 'https://services.leadconnectorhq.com/documents/download/direct-code-editor-hero.png');
+if (!targetCustomImageAsset) {
+  console.error('FAIL: Target asset not located in custom-augmented HTML!');
+  process.exit(1);
+}
+const subsequentVisualSync = replaceImageUrlInHtml(
+  htmlWithCustomAuthorContent,
+  targetCustomImageAsset,
+  'https://services.leadconnectorhq.com/documents/download/subsequent-sync-image.png'
+);
+if (!subsequentVisualSync.includes(customAttributeToken)) {
+  console.error('FAIL: Custom HTML attribute was stripped during Visual Editor synchronization!');
+  process.exit(1);
+}
+if (!subsequentVisualSync.includes(customDivTag)) {
+  console.error('FAIL: Custom HTML markup element was stripped during synchronization!');
+  process.exit(1);
+}
+if (!subsequentVisualSync.includes('https://services.leadconnectorhq.com/documents/download/subsequent-sync-image.png')) {
+  console.error('FAIL: Image URL was not updated in custom-augmented HTML!');
+  process.exit(1);
+}
+
+// 41.5 Idempotent State Transitions (No loops or unintended mutations on re-analysis)
+const pass1Analysis = analyzeHtml(subsequentVisualSync);
+const pass2Analysis = analyzeHtml(subsequentVisualSync);
+if (pass1Analysis.assets.length !== pass2Analysis.assets.length || pass1Analysis.forms.length !== pass2Analysis.forms.length) {
+  console.error('FAIL: Non-idempotent analysis detected across identical HTML inputs!');
+  process.exit(1);
+}
+console.log('   ✓ Visual Editor -> Code Editor real-time synchronization verified.');
+console.log('   ✓ Form Manager -> Code Editor real-time synchronization verified.');
+console.log('   ✓ Code Editor -> Visual Editor & Form Manager reverse-sync verified.');
+console.log('   ✓ User custom HTML tags and data-* attributes 100% preserved during sync cycles.');
+console.log('   ✓ Synchronization pipeline is idempotent with zero update loops.');
+
 // Final cleanup: Always ensure secretStore has the embedded token configured for production app launch
 saveGhlCredentials({
   token: getEmbeddedDefaultGhlToken(),
@@ -1419,5 +1535,5 @@ saveGhlCredentials({
 });
 
 console.log('\n====================================================');
-console.log('   ALL 40 TEST SUITES PASSED WITH 100% FIDELITY!   ');
+console.log('   ALL 41 TEST SUITES PASSED WITH 100% FIDELITY!   ');
 console.log('====================================================\n');

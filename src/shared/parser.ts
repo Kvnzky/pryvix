@@ -1079,9 +1079,28 @@ export function updateGHLFormInHtml(
 
   // 3. If height is changing
   if (updates.height) {
-    const escapedIframeId = oldIframeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const heightAttrRegex = new RegExp(`(<iframe\\b[^>]*id\\s*=\\s*["']${escapedIframeId}["'][^>]*data-height\\s*=\\s*["'])[^"']+(["'])`, 'i');
-    updatedHtml = updatedHtml.replace(heightAttrRegex, `$1${updates.height}$2`);
+    const currentIframeId = updates.formId && updates.formId !== oldFormId
+      ? oldIframeId.replace(oldFormId, updates.formId)
+      : oldIframeId;
+    const escapedIframeId = currentIframeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedOldIframeId = oldIframeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const idPattern = `(?:${escapedIframeId}|${escapedOldIframeId})`;
+
+    const heightAttrRegex = new RegExp(
+      `(<iframe\\b[^>]*id\\s*=\\s*["']${idPattern}["'][^>]*data-height\\s*=\\s*["'])[^"']+(["'])`,
+      'i'
+    );
+    if (heightAttrRegex.test(updatedHtml)) {
+      updatedHtml = updatedHtml.replace(heightAttrRegex, `$1${updates.height}$2`);
+    } else {
+      const heightAttrRegexBefore = new RegExp(
+        `(<iframe\\b[^>]*data-height\\s*=\\s*["'])[^"']+(["'][^>]*id\\s*=\\s*["']${idPattern}["'])`,
+        'i'
+      );
+      if (heightAttrRegexBefore.test(updatedHtml)) {
+        updatedHtml = updatedHtml.replace(heightAttrRegexBefore, `$1${updates.height}$2`);
+      }
+    }
   }
 
   // 4. If closingCustomValue is changing

@@ -150,51 +150,103 @@ export default function App() {
     setRedoStack([]);
   };
 
+  // Centralized Authoritative Project HTML Update Pipeline
+  const applyAuthoritativeHtmlUpdate = useCallback(
+    (
+      newHtml: string,
+      options: {
+        origin: 'editor' | 'forms' | 'code' | 'system';
+        component?: string;
+        description?: string;
+        prevValue?: string;
+        newValue?: string;
+        type?: ChangeHistoryEntry['type'];
+        pushToUndo?: boolean;
+        extraProjectUpdates?: Partial<Project>;
+      }
+    ) => {
+      if (!activeProject) return;
+      if (newHtml === activeProject.currentHtml && !options.extraProjectUpdates) return;
+
+      if (options.pushToUndo) {
+        pushUndo(activeProject.currentHtml);
+      }
+
+      const reanalysis = analyzeHtml(newHtml, activeProject.id);
+      const preservedAssets = preserveOriginalAssetUrls(
+        reanalysis.assets,
+        assets,
+        activeProject.originalHtml,
+        activeProject.id
+      );
+
+      const preservedTitle = (
+        options.extraProjectUpdates?.formTitle ||
+        activeProject.formTitle ||
+        ''
+      ).trim();
+      if (preservedTitle) {
+        reanalysis.forms.forEach(f => {
+          if (!f.formName || f.formName.trim() === '') {
+            f.formName = preservedTitle;
+          }
+        });
+      }
+
+      const updatedProject: Project = {
+        ...activeProject,
+        currentHtml: newHtml,
+        updatedAt: new Date().toISOString(),
+        assetCount: preservedAssets.length,
+        formCount: reanalysis.forms.length,
+        backgroundConfiguration:
+          options.extraProjectUpdates?.backgroundConfiguration ||
+          extractBackgroundConfig(newHtml),
+        formTitle: preservedTitle || activeProject.formTitle,
+        ...options.extraProjectUpdates,
+      };
+
+      setActiveProject(updatedProject);
+      setAssets(preservedAssets);
+      setForms(reanalysis.forms);
+      setSections(reanalysis.sections);
+
+      saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
+
+      if (options.description) {
+        addHistoryEntry(activeProject.id, {
+          projectId: activeProject.id,
+          component: options.component || 'Landing Page Studio',
+          description: options.description,
+          prevValue: options.prevValue || '',
+          newValue: options.newValue || '',
+          type: options.type || 'code_edit',
+        });
+        setHistory(getHistory(activeProject.id));
+      }
+    },
+    [activeProject, assets, preserveOriginalAssetUrls, pushUndo]
+  );
+
   // Replace Asset Image URL
   const handleReplaceImageUrl = (assetId: string, newUrl: string) => {
     if (!activeProject) return;
-
     const targetAsset = assets.find(a => a.id === assetId);
     if (!targetAsset || targetAsset.currentUrl === newUrl) return;
 
-    pushUndo(activeProject.currentHtml);
-
-    // Apply source-preserving replacement in HTML
     const updatedHtml = replaceImageUrlInHtml(activeProject.currentHtml, targetAsset, newUrl);
-
-    // Re-analyze and preserve true originalUrl for each asset
-    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
-    const preservedAssets = preserveOriginalAssetUrls(
-      reanalysis.assets,
-      assets,
-      activeProject.originalHtml,
-      activeProject.id
-    );
-
-    const updatedProject: Project = {
-      ...activeProject,
-      currentHtml: updatedHtml,
-      updatedAt: new Date().toISOString(),
-      assetCount: preservedAssets.length,
-      backgroundConfiguration: extractBackgroundConfig(updatedHtml),
-    };
-
-    setActiveProject(updatedProject);
-    setAssets(preservedAssets);
-    setSections(reanalysis.sections);
-
-    saveProject(updatedProject, preservedAssets, forms, reanalysis.sections);
-
-    addHistoryEntry(activeProject.id, {
-      projectId: activeProject.id,
+    applyAuthoritativeHtmlUpdate(updatedHtml, {
+      origin: 'editor',
       component: targetAsset.label,
       description: `Replaced image URL for ${targetAsset.label}`,
       prevValue: targetAsset.currentUrl,
       newValue: newUrl,
       type: 'image_url',
+      pushToUndo: true,
+      extraProjectUpdates: {
+        backgroundConfiguration: extractBackgroundConfig(updatedHtml),
+      },
     });
-
-    setHistory(getHistory(activeProject.id));
   };
 
   // Restore Original Image URL
@@ -214,38 +266,17 @@ export default function App() {
     }
     setFormManagerValidationError(null);
 
-    pushUndo(activeProject.currentHtml);
-
-    // Update HTML for all GHL form iframes
     const updatedHtml = updateSharedFormTitleInHtml(activeProject.currentHtml, trimmed);
-
-    // Update forms in memory
-    const updatedForms = forms.map(f => ({
-      ...f,
-      formName: trimmed,
-    }));
-
-    const updatedProject: Project = {
-      ...activeProject,
-      formTitle: trimmed,
-      currentHtml: updatedHtml,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setActiveProject(updatedProject);
-    setForms(updatedForms);
-    saveProject(updatedProject, assets, updatedForms, sections);
-
-    addHistoryEntry(activeProject.id, {
-      projectId: activeProject.id,
+    applyAuthoritativeHtmlUpdate(updatedHtml, {
+      origin: 'forms',
       component: 'Form Title / Name',
       description: `Updated shared Form Title / Name to "${trimmed}"`,
       prevValue: activeProject.formTitle || '',
       newValue: trimmed,
       type: 'form_setting',
+      pushToUndo: true,
+      extraProjectUpdates: { formTitle: trimmed },
     });
-
-    setHistory(getHistory(activeProject.id));
     refreshProjectsList();
   };
 
@@ -260,53 +291,29 @@ export default function App() {
     }
   ) => {
     if (!activeProject) return;
-
     const targetForm = forms.find(f => f.id === formId);
     if (!targetForm) return;
 
-    pushUndo(activeProject.currentHtml);
-
     const updatedHtml = updateGHLFormInHtml(activeProject.currentHtml, targetForm, updates);
-    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
-
-    // Keep shared formTitle consistent across both forms
     const currentSharedTitle = (updates.formName !== undefined ? updates.formName : activeProject.formTitle) || '';
-    if (currentSharedTitle) {
-      reanalysis.forms.forEach(f => {
-        f.formName = currentSharedTitle;
-      });
-    }
 
-    const updatedProject: Project = {
-      ...activeProject,
-      formTitle: currentSharedTitle || activeProject.formTitle,
-      currentHtml: updatedHtml,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setActiveProject(updatedProject);
-    setForms(reanalysis.forms);
-    setSections(reanalysis.sections);
-
-    saveProject(updatedProject, assets, reanalysis.forms, reanalysis.sections);
-
-    addHistoryEntry(activeProject.id, {
-      projectId: activeProject.id,
-      component: targetForm.formName,
+    applyAuthoritativeHtmlUpdate(updatedHtml, {
+      origin: 'forms',
+      component: targetForm.formName || 'GoHighLevel Form',
       description: `Updated GHL Form settings: ${updates.formId || updates.formName || updates.closingCustomValue || 'attributes'}`,
       prevValue: targetForm.formId,
       newValue: updates.formId || updates.closingCustomValue || '',
       type: 'form_id',
+      pushToUndo: true,
+      extraProjectUpdates: {
+        formTitle: currentSharedTitle || activeProject.formTitle,
+      },
     });
-
-    setHistory(getHistory(activeProject.id));
   };
 
   // Update Background Mode and URLs (Option B strict implementation)
   const handleUpdateBackgroundConfig = (newConfig: BackgroundConfig) => {
     if (!activeProject) return;
-    pushUndo(activeProject.currentHtml);
-
     let updatedHtml = activeProject.currentHtml;
     const currentMode = activeProject.backgroundConfiguration?.mode || detectBackgroundModeInHtml(updatedHtml);
 
@@ -328,261 +335,116 @@ export default function App() {
       }
     }
 
-    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
-    const preservedAssets = preserveOriginalAssetUrls(
-      reanalysis.assets,
-      assets,
-      activeProject.originalHtml,
-      activeProject.id
-    );
-
-    const updatedProject: Project = {
-      ...activeProject,
-      currentHtml: updatedHtml,
-      updatedAt: new Date().toISOString(),
-      assetCount: preservedAssets.length,
-      backgroundConfiguration: newConfig,
-    };
-
-    setActiveProject(updatedProject);
-    setAssets(preservedAssets);
-    setSections(reanalysis.sections);
-    setForms(reanalysis.forms);
-
-    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
-
-    addHistoryEntry(activeProject.id, {
-      projectId: activeProject.id,
+    applyAuthoritativeHtmlUpdate(updatedHtml, {
+      origin: 'editor',
       component: 'Background Implementation Mode',
       description: `Switched / updated background mode to ${newConfig.mode.toUpperCase()}`,
       prevValue: currentMode,
       newValue: newConfig.mode,
       type: 'code_edit',
+      pushToUndo: true,
+      extraProjectUpdates: {
+        backgroundConfiguration: newConfig,
+      },
     });
-
-    setHistory(getHistory(activeProject.id));
   };
 
   // Toggle Section Visibility
   const handleToggleSectionVisibility = (sectionId: string, visible: boolean) => {
     if (!activeProject) return;
-    pushUndo(activeProject.currentHtml);
-
     const updatedHtml = toggleSectionVisibilityInHtml(activeProject.currentHtml, sectionId, visible);
     const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
-    const preservedAssets = preserveOriginalAssetUrls(
-      reanalysis.assets,
-      assets,
-      activeProject.originalHtml,
-      activeProject.id
-    );
-
     const hiddenIds = reanalysis.sections.filter(s => s.visible === false).map(s => s.id);
 
-    const updatedProject: Project = {
-      ...activeProject,
-      currentHtml: updatedHtml,
-      updatedAt: new Date().toISOString(),
-      sectionSettings: {
-        hiddenSectionIds: hiddenIds,
-        customSections: activeProject.sectionSettings?.customSections || [],
-      },
-    };
-
-    setActiveProject(updatedProject);
-    setAssets(preservedAssets);
-    setSections(reanalysis.sections);
-    setForms(reanalysis.forms);
-
-    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
-
-    addHistoryEntry(activeProject.id, {
-      projectId: activeProject.id,
+    applyAuthoritativeHtmlUpdate(updatedHtml, {
+      origin: 'editor',
       component: `Section: ${sectionId}`,
       description: `${visible ? 'Showed' : 'Hid'} section ${sectionId}`,
       prevValue: (!visible).toString(),
       newValue: visible.toString(),
       type: 'code_edit',
+      pushToUndo: true,
+      extraProjectUpdates: {
+        sectionSettings: {
+          hiddenSectionIds: hiddenIds,
+          customSections: activeProject.sectionSettings?.customSections || [],
+        },
+      },
     });
-
-    setHistory(getHistory(activeProject.id));
   };
 
   // Update Read More Button Configuration
   const handleUpdateReadMoreConfig = (newConfig: ReadMoreSectionConfig) => {
     if (!activeProject) return;
-    pushUndo(activeProject.currentHtml);
-
     const updatedHtml = updateReadMoreButtonInHtml(activeProject.currentHtml, newConfig);
-    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
-    const preservedAssets = preserveOriginalAssetUrls(
-      reanalysis.assets,
-      assets,
-      activeProject.originalHtml,
-      activeProject.id
-    );
 
-    const updatedProject: Project = {
-      ...activeProject,
-      currentHtml: updatedHtml,
-      updatedAt: new Date().toISOString(),
-      readMoreConfiguration: newConfig,
-    };
-
-    setActiveProject(updatedProject);
-    setAssets(preservedAssets);
-    setSections(reanalysis.sections);
-    setForms(reanalysis.forms);
-
-    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
-
-    addHistoryEntry(activeProject.id, {
-      projectId: activeProject.id,
+    applyAuthoritativeHtmlUpdate(updatedHtml, {
+      origin: 'editor',
       component: 'Read More Button',
       description: 'Updated responsive Read More Button styling and URLs',
       prevValue: activeProject.readMoreConfiguration?.desktop?.url || '',
       newValue: newConfig.desktop.url || '',
       type: 'code_edit',
+      pushToUndo: true,
+      extraProjectUpdates: {
+        readMoreConfiguration: newConfig,
+      },
     });
-
-    setHistory(getHistory(activeProject.id));
   };
 
   // Add Supported Section
   const handleAddSection = (sectionType: SupportedSectionType) => {
     if (!activeProject) return;
-    pushUndo(activeProject.currentHtml);
-
     const updatedHtml = addSectionToHtml(activeProject.currentHtml, sectionType);
-    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
-    const preservedAssets = preserveOriginalAssetUrls(
-      reanalysis.assets,
-      assets,
-      activeProject.originalHtml,
-      activeProject.id
-    );
 
-    const updatedProject: Project = {
-      ...activeProject,
-      currentHtml: updatedHtml,
-      updatedAt: new Date().toISOString(),
-      assetCount: preservedAssets.length,
-    };
-
-    setActiveProject(updatedProject);
-    setAssets(preservedAssets);
-    setSections(reanalysis.sections);
-    setForms(reanalysis.forms);
-
-    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
-
-    addHistoryEntry(activeProject.id, {
-      projectId: activeProject.id,
+    applyAuthoritativeHtmlUpdate(updatedHtml, {
+      origin: 'editor',
       component: 'Section Manager',
       description: `Added supported section ${sectionType}`,
       prevValue: '',
       newValue: sectionType,
       type: 'code_edit',
+      pushToUndo: true,
     });
-
-    setHistory(getHistory(activeProject.id));
   };
 
   // Remove Custom Section
   const handleRemoveSection = (sectionId: string) => {
     if (!activeProject) return;
-    pushUndo(activeProject.currentHtml);
-
     const updatedHtml = removeSectionFromHtml(activeProject.currentHtml, sectionId);
-    const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
-    const preservedAssets = preserveOriginalAssetUrls(
-      reanalysis.assets,
-      assets,
-      activeProject.originalHtml,
-      activeProject.id
-    );
 
-    const updatedProject: Project = {
-      ...activeProject,
-      currentHtml: updatedHtml,
-      updatedAt: new Date().toISOString(),
-      assetCount: preservedAssets.length,
-    };
-
-    setActiveProject(updatedProject);
-    setAssets(preservedAssets);
-    setSections(reanalysis.sections);
-    setForms(reanalysis.forms);
-
-    saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
-
-    addHistoryEntry(activeProject.id, {
-      projectId: activeProject.id,
+    applyAuthoritativeHtmlUpdate(updatedHtml, {
+      origin: 'editor',
       component: 'Section Manager',
       description: `Removed section ${sectionId}`,
       prevValue: sectionId,
       newValue: '',
       type: 'code_edit',
+      pushToUndo: true,
     });
-
-    setHistory(getHistory(activeProject.id));
   };
 
   // Direct Code Editor Save
   const handleSaveCode = (newHtml: string, desc?: string) => {
     if (!activeProject) return;
+    applyAuthoritativeHtmlUpdate(newHtml, {
+      origin: 'code',
+      component: 'Monaco Code Editor',
+      description: desc || 'Direct code edits applied and re-analyzed',
+      prevValue: '',
+      newValue: 'Code Update',
+      type: 'code_edit',
+      pushToUndo: true,
+    });
+  };
 
-    try {
-      pushUndo(activeProject.currentHtml);
-
-      const reanalysis = analyzeHtml(newHtml, activeProject.id);
-      const preservedAssets = preserveOriginalAssetUrls(
-        reanalysis.assets,
-        assets,
-        activeProject.originalHtml,
-        activeProject.id
-      );
-
-      // Preserve existing shared formTitle if present
-      const preservedTitle = (activeProject.formTitle || '').trim();
-      if (preservedTitle) {
-        reanalysis.forms.forEach(f => {
-          if (!f.formName || f.formName.trim() === '') {
-            f.formName = preservedTitle;
-          }
-        });
-      }
-
-      const updatedProject: Project = {
-        ...activeProject,
-        formTitle: preservedTitle || activeProject.formTitle,
-        currentHtml: newHtml,
-        updatedAt: new Date().toISOString(),
-        assetCount: preservedAssets.length,
-        formCount: reanalysis.forms.length,
-        backgroundConfiguration: extractBackgroundConfig(newHtml),
-      };
-
-      setActiveProject(updatedProject);
-      setAssets(preservedAssets);
-      setForms(reanalysis.forms);
-      setSections(reanalysis.sections);
-
-      saveProject(updatedProject, preservedAssets, reanalysis.forms, reanalysis.sections);
-
-      addHistoryEntry(activeProject.id, {
-        projectId: activeProject.id,
-        component: 'Monaco Code Editor',
-        description: desc || 'Direct code edits applied and re-analyzed',
-        prevValue: '',
-        newValue: 'Code Update',
-        type: 'code_edit',
-      });
-
-      setHistory(getHistory(activeProject.id));
-    } catch (err: any) {
-      console.error('[handleSaveCode] Critical parsing/saving error prevented:', err);
-    }
+  // Real-Time Auto-Sync from Code Editor (without undo spam)
+  const handleAutoSyncCode = (newHtml: string) => {
+    if (!activeProject) return;
+    applyAuthoritativeHtmlUpdate(newHtml, {
+      origin: 'code',
+      pushToUndo: false,
+    });
   };
 
   // Quick Manual Save
@@ -847,6 +709,7 @@ export default function App() {
                 project={activeProject}
                 initialLineNumber={targetCodeLine}
                 onSaveCode={handleSaveCode}
+                onAutoSyncCode={handleAutoSyncCode}
               />
             )}
 
