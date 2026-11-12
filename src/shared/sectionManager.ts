@@ -237,6 +237,21 @@ export const SUPPORTED_SECTIONS_REGISTRY: SectionDefinition[] = [
   },
 ];
 
+export const SECTION_VISIBILITY_STYLE_BLOCK = `
+<style id="pryvix-section-visibility-styles">
+  @media (min-width: 768px) {
+    .pryvix-hide-desktop { display: none !important; }
+  }
+  @media (max-width: 767px) {
+    .pryvix-hide-mobile { display: none !important; }
+  }
+</style>`.trim();
+
+export type SectionPlacement =
+  | { position: 'before'; targetSectionId: string }
+  | { position: 'after'; targetSectionId: string }
+  | { position: 'end' };
+
 /**
  * Detects all supported sections in the HTML document and their visibility status.
  */
@@ -251,11 +266,27 @@ export function detectSectionsInHtml(
     const boundary = def.findBoundary(html);
     if (boundary) {
       const prev = existingMap.get(def.id);
+      const openTag = boundary.outerHtml.substring(0, Math.min(300, boundary.outerHtml.indexOf('>') + 1));
+      const hasHideDesktop = /\bpryvix-hide-desktop\b/i.test(openTag);
+      const hasHideMobile = /\bpryvix-hide-mobile\b/i.test(openTag);
+      const isMobileOnlyDef = def.id === 'sec_mobile_form';
+
+      let isDesktopVisible = !boundary.isHidden && !hasHideDesktop && !isMobileOnlyDef;
+      let isMobileVisible = !boundary.isHidden && !hasHideMobile;
+
+      if (def.type === 'read_more_button') {
+        const readMoreConfig = extractReadMoreConfigFromHtml(html, prev?.config?.readMore);
+        isDesktopVisible = !boundary.isHidden && Boolean(readMoreConfig.desktop?.enabled);
+        isMobileVisible = !boundary.isHidden && Boolean(readMoreConfig.mobile?.enabled);
+      }
+
       result.push({
         id: def.id,
         name: def.name,
         type: def.type,
-        visible: !boundary.isHidden,
+        visible: !boundary.isHidden && (isDesktopVisible || isMobileVisible),
+        desktopVisible: isDesktopVisible,
+        mobileVisible: isMobileVisible,
         order: index + 1,
         isAddable: def.isAddable,
         isDeletable: def.isDeletable,
@@ -274,12 +305,27 @@ export function detectSectionsInHtml(
 
 /**
  * Toggles visibility of a section in HTML without destroying its original content or inner structure.
+ * Supports whole-section toggle, as well as independent desktop and mobile visibility.
  */
 export function toggleSectionVisibilityInHtml(
   html: string,
   sectionId: string,
-  visible: boolean
+  visible: boolean,
+  device: 'all' | 'desktop' | 'mobile' = 'all'
 ): string {
+  // If Read More button, update readMoreConfig directly if device is desktop or mobile
+  if (sectionId === 'sec_read_more' && (device === 'desktop' || device === 'mobile')) {
+    const currentConfig = extractReadMoreConfigFromHtml(html);
+    const updatedConfig: ReadMoreSectionConfig = {
+      ...currentConfig,
+      [device]: {
+        ...currentConfig[device],
+        enabled: visible,
+      },
+    };
+    return updateReadMoreButtonInHtml(html, updatedConfig);
+  }
+
   const def = SUPPORTED_SECTIONS_REGISTRY.find(d => d.id === sectionId);
   if (!def) return html;
 
@@ -294,38 +340,87 @@ export function toggleSectionVisibilityInHtml(
   const tagName = openTagMatch[1];
   let tagAttrs = openTagMatch[2];
 
-  if (!visible) {
-    // Hide: apply data attribute and display: none !important
-    if (!/data-pryvix-section-hidden="true"/i.test(tagAttrs)) {
-      tagAttrs = `${tagAttrs} data-pryvix-section-hidden="true"`;
-    }
-    if (/style\s*=\s*["']([^"']*)["']/i.test(tagAttrs)) {
-      tagAttrs = tagAttrs.replace(/style\s*=\s*["']([^"']*)["']/i, (m, existingStyle) => {
-        const clean = existingStyle.replace(/display\s*:\s*none\s*!important;?/gi, '').trim();
-        return `style="display: none !important; ${clean}"`.trim();
-      });
+  if (device === 'desktop') {
+    if (!visible) {
+      if (!/\bpryvix-hide-desktop\b/i.test(tagAttrs)) {
+        if (/class\s*=\s*["']([^"']*)["']/i.test(tagAttrs)) {
+          tagAttrs = tagAttrs.replace(/class\s*=\s*["']([^"']*)["']/i, 'class="$1 pryvix-hide-desktop"');
+        } else {
+          tagAttrs = `${tagAttrs} class="pryvix-hide-desktop"`;
+        }
+      }
     } else {
-      tagAttrs = `${tagAttrs} style="display: none !important;"`;
+      tagAttrs = tagAttrs.replace(/\bpryvix-hide-desktop\b/gi, '').replace(/\s\s+/g, ' ');
+    }
+  } else if (device === 'mobile') {
+    if (!visible) {
+      if (!/\bpryvix-hide-mobile\b/i.test(tagAttrs)) {
+        if (/class\s*=\s*["']([^"']*)["']/i.test(tagAttrs)) {
+          tagAttrs = tagAttrs.replace(/class\s*=\s*["']([^"']*)["']/i, 'class="$1 pryvix-hide-mobile"');
+        } else {
+          tagAttrs = `${tagAttrs} class="pryvix-hide-mobile"`;
+        }
+      }
+    } else {
+      tagAttrs = tagAttrs.replace(/\bpryvix-hide-mobile\b/gi, '').replace(/\s\s+/g, ' ');
     }
   } else {
-    // Show: remove data attribute and display: none !important
-    tagAttrs = tagAttrs.replace(/\s*data-pryvix-section-hidden="true"/gi, '');
-    if (/style\s*=\s*["']([^"']*)["']/i.test(tagAttrs)) {
-      tagAttrs = tagAttrs.replace(/style\s*=\s*["']([^"']*)["']/i, (m, existingStyle) => {
-        const clean = existingStyle
-          .replace(/display\s*:\s*none\s*!important;?/gi, '')
-          .trim()
-          .replace(/;\s*;+/g, ';');
-        if (!clean) return '';
-        return `style="${clean}"`;
-      });
+    // 'all'
+    if (!visible) {
+      // Hide: apply data attribute and display: none !important
+      if (!/data-pryvix-section-hidden="true"/i.test(tagAttrs)) {
+        tagAttrs = `${tagAttrs} data-pryvix-section-hidden="true"`;
+      }
+      if (/style\s*=\s*["']([^"']*)["']/i.test(tagAttrs)) {
+        tagAttrs = tagAttrs.replace(/style\s*=\s*["']([^"']*)["']/i, (_m, existingStyle) => {
+          const clean = existingStyle.replace(/display\s*:\s*none\s*!important;?/gi, '').trim();
+          return `style="display: none !important; ${clean}"`.trim();
+        });
+      } else {
+        tagAttrs = `${tagAttrs} style="display: none !important;"`;
+      }
+    } else {
+      // Show: remove data attribute, display: none !important, and any device hide classes
+      tagAttrs = tagAttrs.replace(/\s*data-pryvix-section-hidden="true"/gi, '');
+      tagAttrs = tagAttrs.replace(/\bpryvix-hide-desktop\b/gi, '').replace(/\bpryvix-hide-mobile\b/gi, '').replace(/\s\s+/g, ' ');
+      if (/style\s*=\s*["']([^"']*)["']/i.test(tagAttrs)) {
+        tagAttrs = tagAttrs.replace(/style\s*=\s*["']([^"']*)["']/i, (_m, existingStyle) => {
+          const clean = existingStyle
+            .replace(/display\s*:\s*none\s*!important;?/gi, '')
+            .trim()
+            .replace(/;\s*;+/g, ';');
+          if (!clean) return '';
+          return `style="${clean}"`;
+        });
+      }
     }
   }
 
   const newOpenTag = `<${tagName}${tagAttrs}>`;
   const newOuter = newOpenTag + outer.substring(openTagMatch[0].length);
+  let updatedHtml = html.substring(0, boundary.start) + newOuter + html.substring(boundary.end);
 
-  return html.substring(0, boundary.start) + newOuter + html.substring(boundary.end);
+  // Maintain scoped visibility styles block if pryvix-hide-desktop or pryvix-hide-mobile is present on any element
+  const styleBlockRegex = /<style\b[^>]*id\s*=\s*["']pryvix-section-visibility-styles["'][^>]*>[\s\S]*?<\/style>\s*/i;
+  const htmlWithoutVisibilityStyles = updatedHtml.replace(styleBlockRegex, '');
+  const hasResponsiveHideClasses = /\bpryvix-hide-(desktop|mobile)\b/i.test(htmlWithoutVisibilityStyles);
+
+  if (hasResponsiveHideClasses) {
+    if (!styleBlockRegex.test(updatedHtml)) {
+      if (/<\/head>/i.test(updatedHtml)) {
+        updatedHtml = updatedHtml.replace(/<\/head>/i, `    ${SECTION_VISIBILITY_STYLE_BLOCK}\n</head>`);
+      } else {
+        updatedHtml = `${SECTION_VISIBILITY_STYLE_BLOCK}\n${updatedHtml}`;
+      }
+    }
+  } else {
+    // If no responsive hide classes remain on any elements, strip the style block cleanly
+    if (styleBlockRegex.test(updatedHtml)) {
+      updatedHtml = updatedHtml.replace(styleBlockRegex, '');
+    }
+  }
+
+  return updatedHtml;
 }
 
 /**
@@ -488,18 +583,20 @@ export function updateReadMoreButtonInHtml(
  */
 export function addSectionToHtml(
   html: string,
-  sectionType: SupportedSectionType
+  sectionType: SupportedSectionType,
+  placement?: SectionPlacement
 ): string {
   if (sectionType === 'read_more_button') {
     return updateReadMoreButtonInHtml(html, DEFAULT_READ_MORE_CONFIG);
   }
 
+  let sectionHtml = '';
   if (sectionType === 'additional_content') {
     // Check if already present
     if (/<section\b[^>]*class\s*=\s*["'][^"']*\badditional-content-section\b[^"']*["']/i.test(html)) {
       return html;
     }
-    const sectionHtml = `
+    sectionHtml = `
     <!-- Additional Content Section -->
     <section class="additional-content-section" id="pryvixAdditionalContentSection" style="padding: 44px 20px; text-align: center; background: rgba(10, 14, 26, 0.85); color: #ffffff; border-top: 1px solid rgba(37, 99, 235, 0.2);">
         <div class="additional-content-container" style="max-width: 1000px; margin: 0 auto;">
@@ -509,22 +606,11 @@ export function addSectionToHtml(
             </p>
         </div>
     </section>`.trim();
-
-    // Insert after prize-banner-section or before campaign-details-section
-    const prizeSecRegex = /(<\/section>\s*)(<!--\s*Campaign\s+Details\s+Section\s*-->|<section\b[^>]*class\s*=\s*["'][^"']*\bcampaign-details-section\b)/i;
-    if (prizeSecRegex.test(html)) {
-      return html.replace(prizeSecRegex, `</section>\n\n    ${sectionHtml}\n\n    $2`);
-    }
-
-    // Fallback: before </body>
-    return html.replace(/<\/body>/i, `    ${sectionHtml}\n</body>`);
-  }
-
-  if (sectionType === 'campaign_info') {
+  } else if (sectionType === 'campaign_info') {
     if (/<section\b[^>]*class\s*=\s*["'][^"']*\bcampaign-info-section\b[^"']*["']/i.test(html)) {
       return html;
     }
-    const sectionHtml = `
+    sectionHtml = `
     <!-- Campaign Information Section -->
     <section class="campaign-info-section" id="pryvixCampaignInfoSection" style="padding: 44px 20px; text-align: center; background: rgba(15, 23, 42, 0.9); color: #ffffff; border-top: 1px solid rgba(124, 58, 237, 0.25);">
         <div class="campaign-info-container" style="max-width: 1000px; margin: 0 auto;">
@@ -541,16 +627,37 @@ export function addSectionToHtml(
             </div>
         </div>
     </section>`.trim();
-
-    const prizeSecRegex = /(<\/section>\s*)(<!--\s*Campaign\s+Details\s+Section\s*-->|<section\b[^>]*class\s*=\s*["'][^"']*\bcampaign-details-section\b)/i;
-    if (prizeSecRegex.test(html)) {
-      return html.replace(prizeSecRegex, `</section>\n\n    ${sectionHtml}\n\n    $2`);
-    }
-
-    return html.replace(/<\/body>/i, `    ${sectionHtml}\n</body>`);
+  } else {
+    throw new Error(`Unsupported section type: ${sectionType}`);
   }
 
-  throw new Error(`Unsupported section type: ${sectionType}`);
+  // Handle explicit placement if provided
+  if (placement) {
+    if (placement.position === 'before' || placement.position === 'after') {
+      const targetDef = SUPPORTED_SECTIONS_REGISTRY.find(d => d.id === placement.targetSectionId);
+      if (targetDef) {
+        const boundary = targetDef.findBoundary(html);
+        if (boundary) {
+          if (placement.position === 'before') {
+            return html.substring(0, boundary.start) + `${sectionHtml}\n\n    ` + html.substring(boundary.start);
+          } else {
+            return html.substring(0, boundary.end) + `\n\n    ${sectionHtml}` + html.substring(boundary.end);
+          }
+        }
+      }
+    } else if (placement.position === 'end') {
+      return html.replace(/<\/body>/i, `    ${sectionHtml}\n</body>`);
+    }
+  }
+
+  // Default placement: Insert after prize-banner-section or before campaign-details-section
+  const prizeSecRegex = /(<\/section>\s*)(<!--\s*Campaign\s+Details\s+Section\s*-->|<section\b[^>]*class\s*=\s*["'][^"']*\bcampaign-details-section\b)/i;
+  if (prizeSecRegex.test(html)) {
+    return html.replace(prizeSecRegex, `</section>\n\n    ${sectionHtml}\n\n    $2`);
+  }
+
+  // Fallback: before </body>
+  return html.replace(/<\/body>/i, `    ${sectionHtml}\n</body>`);
 }
 
 /**

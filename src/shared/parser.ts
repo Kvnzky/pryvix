@@ -19,7 +19,9 @@ import {
   DEFAULT_READ_MORE_CONFIG,
   isValidDestinationUrl,
   SUPPORTED_SECTIONS_REGISTRY,
+  SECTION_VISIBILITY_STYLE_BLOCK,
 } from './sectionManager';
+import type { SectionPlacement } from './sectionManager';
 
 export {
   detectSectionsInHtml,
@@ -31,7 +33,9 @@ export {
   DEFAULT_READ_MORE_CONFIG,
   isValidDestinationUrl,
   SUPPORTED_SECTIONS_REGISTRY,
+  SECTION_VISIBILITY_STYLE_BLOCK,
 };
+export type { SectionPlacement };
 import {
   DEFAULT_STATIC_DESKTOP_IMAGE,
   DEFAULT_STATIC_MOBILE_IMAGE,

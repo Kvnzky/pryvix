@@ -350,16 +350,25 @@ export default function App() {
   };
 
   // Toggle Section Visibility
-  const handleToggleSectionVisibility = (sectionId: string, visible: boolean) => {
+  const handleToggleSectionVisibility = (
+    sectionId: string,
+    visible: boolean,
+    device: 'all' | 'desktop' | 'mobile' = 'all'
+  ) => {
     if (!activeProject) return;
-    const updatedHtml = toggleSectionVisibilityInHtml(activeProject.currentHtml, sectionId, visible);
+    const updatedHtml = toggleSectionVisibilityInHtml(
+      activeProject.currentHtml,
+      sectionId,
+      visible,
+      device
+    );
     const reanalysis = analyzeHtml(updatedHtml, activeProject.id);
     const hiddenIds = reanalysis.sections.filter(s => s.visible === false).map(s => s.id);
 
     applyAuthoritativeHtmlUpdate(updatedHtml, {
       origin: 'editor',
       component: `Section: ${sectionId}`,
-      description: `${visible ? 'Showed' : 'Hid'} section ${sectionId}`,
+      description: `${visible ? 'Showed' : 'Hid'} section ${sectionId}${device !== 'all' ? ` (${device})` : ''}`,
       prevValue: (!visible).toString(),
       newValue: visible.toString(),
       type: 'code_edit',
@@ -393,9 +402,12 @@ export default function App() {
   };
 
   // Add Supported Section
-  const handleAddSection = (sectionType: SupportedSectionType) => {
+  const handleAddSection = (
+    sectionType: SupportedSectionType,
+    placement?: SectionPlacement
+  ) => {
     if (!activeProject) return;
-    const updatedHtml = addSectionToHtml(activeProject.currentHtml, sectionType);
+    const updatedHtml = addSectionToHtml(activeProject.currentHtml, sectionType, placement);
 
     applyAuthoritativeHtmlUpdate(updatedHtml, {
       origin: 'editor',

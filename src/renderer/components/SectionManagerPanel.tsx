@@ -6,23 +6,28 @@ import {
   SlidersHorizontal,
   Plus,
   Trash2,
-  CheckCircle2,
-  Info,
   ChevronDown,
   Layout,
-  ExternalLink,
-  HelpCircle,
   FileText,
   Sparkles,
+  Monitor,
+  Smartphone,
+  Check,
 } from 'lucide-react';
 import { ComponentSection, SupportedSectionType } from '@shared/types';
 import { SUPPORTED_SECTIONS_REGISTRY } from '@shared/parser';
+import type { SectionPlacement } from '@shared/parser';
 
 interface SectionManagerPanelProps {
   sections: ComponentSection[];
-  onToggleVisibility: (sectionId: string, visible: boolean) => void;
-  onOpenReadMoreConfig: () => void;
-  onAddSection: (sectionType: SupportedSectionType) => void;
+  onToggleVisibility: (
+    sectionId: string,
+    visible: boolean,
+    device?: 'all' | 'desktop' | 'mobile'
+  ) => void;
+  onOpenReadMoreConfig?: () => void;
+  onConfigureReadMore?: () => void;
+  onAddSection: (sectionType: SupportedSectionType, placement?: SectionPlacement) => void;
   onRemoveSection: (sectionId: string) => void;
 }
 
@@ -30,12 +35,14 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
   sections,
   onToggleVisibility,
   onOpenReadMoreConfig,
+  onConfigureReadMore,
   onAddSection,
   onRemoveSection,
 }) => {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const handleOpenReadMore = onOpenReadMoreConfig || onConfigureReadMore;
 
-  // Available addable sections not currently in the project
+  // Available addable sections not currently present in the project
   const addableRegistry = SUPPORTED_SECTIONS_REGISTRY.filter(def => def.isAddable);
   const availableToAdd = addableRegistry.filter(
     def => !sections.some(s => s.id === def.id)
@@ -50,13 +57,22 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
       case 'hero':
         return <Sparkles className="w-4 h-4 text-amber-400" />;
       case 'mobile_form':
-        return <Layout className="w-4 h-4 text-emerald-400" />;
+        return <Smartphone className="w-4 h-4 text-emerald-400" />;
       case 'prize':
         return <Sparkles className="w-4 h-4 text-pink-400" />;
       case 'campaign_details':
         return <FileText className="w-4 h-4 text-cyan-400" />;
       default:
         return <Layers className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const handleRemove = (sectionId: string, sectionName: string) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to remove the section "${sectionName}"? This will delete its markup from the landing page.`
+    );
+    if (confirmed) {
+      onRemoveSection(sectionId);
     }
   };
 
@@ -72,11 +88,11 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               Section Manager
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-600/20 text-blue-300 border border-blue-500/30">
-                {sections.filter(s => s.visible).length} / {sections.length} Visible
+                {sections.filter(s => s.visible !== false).length} / {sections.length} Visible
               </span>
             </h3>
             <p className="text-[11px] text-gray-400">
-              Manage supported landing page sections, control visibility, and configure responsive elements
+              Manage landing page sections, configure independent Desktop &amp; Mobile visibility, and add approved components
             </p>
           </div>
         </div>
@@ -95,9 +111,9 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
           </button>
 
           {isAddMenuOpen && availableToAdd.length > 0 && (
-            <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl bg-[#0e1426] border border-[#1e2942] shadow-2xl p-1.5 z-30 space-y-1 animate-fade-in">
+            <div className="absolute right-0 top-full mt-1.5 w-72 rounded-xl bg-[#0e1426] border border-[#1e2942] shadow-2xl p-2 z-30 space-y-1 animate-fade-in">
               <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-2.5 py-1">
-                Supported Predefined Sections
+                Approved Modular Sections
               </div>
               {availableToAdd.map(def => (
                 <button
@@ -107,12 +123,12 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
                     onAddSection(def.type);
                     setIsAddMenuOpen(false);
                   }}
-                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-[#18223a] text-xs text-gray-200 hover:text-white flex items-start gap-2 transition-colors"
+                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-[#18223a] text-xs text-gray-200 hover:text-white flex items-start gap-2.5 transition-colors border border-transparent hover:border-[#1e2942]"
                 >
                   <div className="mt-0.5">{getSectionIcon(def.type)}</div>
                   <div>
                     <div className="font-semibold text-white">{def.name}</div>
-                    <div className="text-[10px] text-gray-400 leading-tight">{def.description}</div>
+                    <div className="text-[10px] text-gray-400 leading-tight mt-0.5">{def.description}</div>
                   </div>
                 </button>
               ))}
@@ -127,21 +143,25 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
           const isConfigurable = section.type === 'read_more_button';
           const regDef = SUPPORTED_SECTIONS_REGISTRY.find(d => d.id === section.id);
           const isDeletable = regDef?.isDeletable || section.isDeletable;
+          const isMobileOnly = section.id === 'sec_mobile_form';
+
+          const isDesktopActive = section.desktopVisible !== false && section.visible !== false;
+          const isMobileActive = section.mobileVisible !== false && section.visible !== false;
 
           return (
             <div
               key={section.id}
-              className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
-                section.visible
+              className={`p-3 rounded-xl border transition-all flex flex-wrap md:flex-nowrap items-center justify-between gap-3 ${
+                section.visible !== false
                   ? 'bg-[#0a0e1a] border-[#1e2942] hover:border-[#2563eb]/50'
-                  : 'bg-[#070a12] border-gray-800/80 opacity-75'
+                  : 'bg-[#070a12] border-gray-800/80 opacity-70'
               }`}
             >
               {/* Left: Icon & Title */}
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div
                   className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
-                    section.visible
+                    section.visible !== false
                       ? 'bg-[#121829] border-[#1e2942]'
                       : 'bg-gray-900 border-gray-800 text-gray-500'
                   }`}
@@ -153,14 +173,14 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
                   <div className="flex items-center gap-2">
                     <span
                       className={`text-xs font-bold truncate ${
-                        section.visible ? 'text-white' : 'text-gray-400 line-through'
+                        section.visible !== false ? 'text-white' : 'text-gray-400 line-through'
                       }`}
                     >
                       {section.name}
                     </span>
 
                     {/* Status Badge */}
-                    {section.visible ? (
+                    {section.visible !== false ? (
                       <span className="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.2 rounded-full bg-emerald-950/70 text-emerald-400 border border-emerald-500/30 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         VISIBLE
@@ -173,7 +193,13 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
 
                     {isConfigurable && (
                       <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-violet-950/70 text-violet-300 border border-violet-500/30">
-                        Desktop &amp; Mobile
+                        Independent Desktop &amp; Mobile
+                      </span>
+                    )}
+
+                    {isMobileOnly && (
+                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30">
+                        Mobile Viewport
                       </span>
                     )}
                   </div>
@@ -184,13 +210,53 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
                 </div>
               </div>
 
+              {/* Middle: Independent Responsive Viewport Controls */}
+              <div className="flex items-center gap-1.5 bg-[#0e1426] p-1 rounded-lg border border-[#1e2942] shrink-0 text-xs">
+                {/* Desktop Viewport Toggle */}
+                <button
+                  type="button"
+                  disabled={isMobileOnly}
+                  onClick={() => onToggleVisibility(section.id, !isDesktopActive, 'desktop')}
+                  className={`px-2 py-1 rounded flex items-center gap-1 text-[11px] font-medium transition-colors ${
+                    isMobileOnly
+                      ? 'opacity-30 cursor-not-allowed text-gray-600'
+                      : isDesktopActive
+                      ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                  title={
+                    isMobileOnly
+                      ? 'Mobile-only section (not supported on Desktop)'
+                      : `Desktop: ${isDesktopActive ? 'Visible' : 'Hidden'} (Click to toggle)`
+                  }
+                >
+                  <Monitor className="w-3 h-3" />
+                  <span className="text-[10px]">Desktop</span>
+                </button>
+
+                {/* Mobile Viewport Toggle */}
+                <button
+                  type="button"
+                  onClick={() => onToggleVisibility(section.id, !isMobileActive, 'mobile')}
+                  className={`px-2 py-1 rounded flex items-center gap-1 text-[11px] font-medium transition-colors ${
+                    isMobileActive
+                      ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                  title={`Mobile: ${isMobileActive ? 'Visible' : 'Hidden'} (Click to toggle)`}
+                >
+                  <Smartphone className="w-3 h-3" />
+                  <span className="text-[10px]">Mobile</span>
+                </button>
+              </div>
+
               {/* Right Action Controls */}
               <div className="flex items-center gap-1.5 shrink-0">
                 {/* Edit / Configure Button where applicable */}
                 {isConfigurable && (
                   <button
                     type="button"
-                    onClick={onOpenReadMoreConfig}
+                    onClick={handleOpenReadMore}
                     className="px-2.5 py-1.5 rounded-lg bg-[#18223a] hover:bg-[#2563eb] text-blue-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 border border-[#2563eb]/40 transition-colors"
                     title="Configure Desktop & Mobile Read More Button"
                   >
@@ -199,18 +265,18 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
                   </button>
                 )}
 
-                {/* Show/Hide Toggle Button */}
+                {/* Global Show/Hide Toggle Button */}
                 <button
                   type="button"
-                  onClick={() => onToggleVisibility(section.id, !section.visible)}
+                  onClick={() => onToggleVisibility(section.id, section.visible === false, 'all')}
                   className={`p-1.5 rounded-lg border text-xs transition-colors flex items-center gap-1 ${
-                    section.visible
+                    section.visible !== false
                       ? 'bg-[#121829] hover:bg-rose-950/50 border-[#1e2942] hover:border-rose-500/50 text-gray-300 hover:text-rose-300'
                       : 'bg-emerald-950/60 hover:bg-emerald-900/60 border-emerald-500/40 text-emerald-300'
                   }`}
-                  title={section.visible ? 'Hide section from page' : 'Show section on page'}
+                  title={section.visible !== false ? 'Hide section from page' : 'Restore section to page'}
                 >
-                  {section.visible ? (
+                  {section.visible !== false ? (
                     <>
                       <Eye className="w-3.5 h-3.5 text-blue-400" />
                       <span className="text-[11px] font-mono px-1">Hide</span>
@@ -218,7 +284,7 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
                   ) : (
                     <>
                       <EyeOff className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-[11px] font-mono px-1">Show</span>
+                      <span className="text-[11px] font-mono px-1">Restore</span>
                     </>
                   )}
                 </button>
@@ -227,9 +293,9 @@ export const SectionManagerPanel: React.FC<SectionManagerPanelProps> = ({
                 {isDeletable && (
                   <button
                     type="button"
-                    onClick={() => onRemoveSection(section.id)}
+                    onClick={() => handleRemove(section.id, section.name)}
                     className="p-1.5 rounded-lg bg-[#121829] hover:bg-rose-950 border border-[#1e2942] hover:border-rose-500/40 text-gray-400 hover:text-rose-300 transition-colors"
-                    title="Delete section"
+                    title="Delete section from landing page"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

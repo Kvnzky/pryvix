@@ -333,6 +333,8 @@ export function compareAndValidateSourcePreservation(
     let count = 0;
     const rmStyle = /<style\b[^>]*id\s*=\s*["']pryvix-read-more-styles["'][^>]*>[\s\S]*?<\/style>/i.exec(html);
     if (rmStyle) count += extractTags(rmStyle[0]).length;
+    const visStyle = /<style\b[^>]*id\s*=\s*["']pryvix-section-visibility-styles["'][^>]*>[\s\S]*?<\/style>/i.exec(html);
+    if (visStyle) count += extractTags(visStyle[0]).length;
     const rmWrapper = /<div\b[^>]*class\s*=\s*["'][^"']*\bpryvix-read-more-wrapper\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i.exec(html);
     if (rmWrapper) {
       count += Math.max(0, extractTags(rmWrapper[0]).length - 3);

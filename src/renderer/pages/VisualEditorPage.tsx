@@ -33,6 +33,7 @@ import {
 } from '@shared/types';
 import { extractBackgroundConfig } from '@shared/parser';
 import { extractReadMoreConfigFromHtml } from '@shared/sectionManager';
+import type { SectionPlacement } from '@shared/sectionManager';
 import { AssetCard } from '../components/AssetCard';
 import { VideoQualityInspectorModal } from '../components/VideoQualityInspectorModal';
 import { SectionManagerPanel } from '../components/SectionManagerPanel';
@@ -47,9 +48,9 @@ interface VisualEditorPageProps {
   onRestoreOriginal: (assetId: string) => void;
   onJumpToCode?: (lineNumber?: number) => void;
   onUpdateBackgroundConfig?: (config: BackgroundConfig) => void;
-  onToggleSectionVisibility?: (sectionId: string, visible: boolean) => void;
+  onToggleSectionVisibility?: (sectionId: string, visible: boolean, device?: 'all' | 'desktop' | 'mobile') => void;
   onUpdateReadMoreConfig?: (config: ReadMoreSectionConfig) => void;
-  onAddSection?: (sectionType: SupportedSectionType) => void;
+  onAddSection?: (sectionType: SupportedSectionType, placement?: SectionPlacement) => void;
   onRemoveSection?: (sectionId: string) => void;
 }
 
@@ -375,7 +376,7 @@ export const VisualEditorPage: React.FC<VisualEditorPageProps> = ({
             title="Manage landing page sections visibility, add sections, and configure Read More Button"
           >
             <LayoutGrid className="w-3.5 h-3.5 text-violet-400" />
-            <span>Sections</span>
+            <span>Section Manager</span>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1e2942] text-violet-300">
               {sections.filter(s => s.visible !== false).length}/{sections.length}
             </span>
@@ -418,14 +419,17 @@ export const VisualEditorPage: React.FC<VisualEditorPageProps> = ({
         <div className="p-4 bg-[#0a0e1a] border-b border-[#1e2942] max-h-96 overflow-y-auto">
           <SectionManagerPanel
             sections={sections}
-            onToggleVisibility={(sectionId, visible) => {
-              onToggleSectionVisibility?.(sectionId, visible);
+            onToggleVisibility={(sectionId, visible, device) => {
+              onToggleSectionVisibility?.(sectionId, visible, device);
             }}
             onConfigureReadMore={() => {
               setIsReadMoreModalOpen(true);
             }}
-            onAddSection={(sectionType) => {
-              onAddSection?.(sectionType);
+            onOpenReadMoreConfig={() => {
+              setIsReadMoreModalOpen(true);
+            }}
+            onAddSection={(sectionType, placement) => {
+              onAddSection?.(sectionType, placement);
             }}
             onRemoveSection={(sectionId) => {
               onRemoveSection?.(sectionId);

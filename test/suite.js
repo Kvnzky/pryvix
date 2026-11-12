@@ -1296,7 +1296,27 @@ if (restoredPopupHtml.includes('data-pryvix-section-hidden')) {
   console.error('FAIL: Restored section still contained data-pryvix-section-hidden attribute!');
   process.exit(1);
 }
-console.log('   ✓ Non-destructive section hide (display: none !important) and clean restore verified.');
+
+// Test Independent Desktop vs Mobile Visibility
+const desktopHiddenCampaignHtml = toggleSectionVisibilityInHtml(BUNDLED_STATIC_REFERENCE_HTML, 'sec_campaign', false, 'desktop');
+if (!desktopHiddenCampaignHtml.includes('pryvix-hide-desktop') || !desktopHiddenCampaignHtml.includes('pryvix-section-visibility-styles')) {
+  console.error('FAIL: Independent desktop section hide failed to inject pryvix-hide-desktop class or scoped styles!');
+  process.exit(1);
+}
+const desktopHiddenSections = detectSectionsInHtml(desktopHiddenCampaignHtml);
+const campaignSecDesk = desktopHiddenSections.find(s => s.id === 'sec_campaign');
+if (!campaignSecDesk || campaignSecDesk.desktopVisible !== false || campaignSecDesk.mobileVisible !== true) {
+  console.error('FAIL: detectSectionsInHtml did not accurately report independent desktop/mobile visibility states!');
+  process.exit(1);
+}
+
+// Restore desktop visibility and verify clean stylesheet removal
+const restoredDesktopCampaignHtml = toggleSectionVisibilityInHtml(desktopHiddenCampaignHtml, 'sec_campaign', true, 'desktop');
+if (restoredDesktopCampaignHtml.includes('pryvix-hide-desktop') || restoredDesktopCampaignHtml.includes('pryvix-section-visibility-styles')) {
+  console.error('FAIL: Restoring desktop visibility failed to clean up pryvix-hide-desktop class or stylesheet!');
+  process.exit(1);
+}
+console.log('   ✓ Non-destructive section hide (display: none !important), clean restore, and independent Desktop/Mobile visibility verified.');
 
 // 38. Add Supported Modular Sections & Arbitrary Injection Protection
 console.log('\n[TEST 38] Testing Add Supported Modular Sections & Rejection of Arbitrary HTML:');
@@ -1310,6 +1330,18 @@ if (!addedInfoHtml.includes('campaign-info-section') || !addedInfoHtml.includes(
 const removedInfoHtml = removeSectionFromHtml(addedInfoHtml, 'sec_campaign_info');
 if (removedInfoHtml.includes('campaign-info-section') || removedInfoHtml.includes('pryvixCampaignInfoSection')) {
   console.error('FAIL: Removed section still found in HTML output!');
+  process.exit(1);
+}
+
+// Verify placement positioning support (before, after, end)
+const beforePlacedHtml = addSectionToHtml(BUNDLED_STATIC_REFERENCE_HTML, 'campaign_info', {
+  position: 'before',
+  targetSectionId: 'sec_campaign',
+});
+const campaignSecIndex = beforePlacedHtml.indexOf('<section class="campaign-details-section');
+const infoSecIndex = beforePlacedHtml.indexOf('<section class="campaign-info-section"');
+if (campaignSecIndex === -1 || infoSecIndex === -1 || infoSecIndex >= campaignSecIndex) {
+  console.error('FAIL: Position placement "before" failed to insert section prior to target section!');
   process.exit(1);
 }
 
